@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Incidencias - Hotel</title>
+    <link rel="stylesheet" href="css-code.css">
+    <!-- CSS para forzar la visibilidad correcta -->
+    <style>
+      #loginForm {
+        display: block !important;
+        visibility: visible !important;
+      }
+
+      #contenido {
+        display: none !important;
+      }
+    </style>
+    <!-- Librería Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  </head>
+  <body>
+    <h1>Gestor de Incidencias</h1>
+    <!-- Formulario de login -->
+    <div id="loginForm">
+      <input type="email" id="email" placeholder="Correo" autocomplete="email">
+      <input type="password" id="password" placeholder="Contraseña" autocomplete="current-password">
+      <button onclick="login()">Entrar</button>
+    </div>
+    <div id="contenido" style="display:none">
+      <p>¡Bienvenido! Aquí estará el contenido protegido.</p>
+    </div>
+    <!-- Todo el JS al final del body -->
+    <script>
+      // Forzar estado inicial correcto
+      document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('loginForm').style.display = 'block';
+        document.getElementById('contenido').style.display = 'none';
+      });
+      // Crear cliente Supabase
+      const {
+        createClient
+      } = supabase;
+      const supabaseUrl = 'https://elbzrevmughchxxytngd.supabase.co';
+      const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsYnpyZXZtdWdoY2h4eHl0bmdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU0MzM5NTksImV4cCI6MjA3MTAwOTk1OX0.1JY9gKQ93V0uu8DNKx9rOlcNwwzyfq4GsNuvayipCeM';
+      const supabaseClient = createClient(supabaseUrl, supabaseKey);
+      // Detectar cambios de sesión
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        console.log("Estado:", event, session);
+        if (session) {
+          document.getElementById('contenido').style.display = 'block';
+          document.getElementById('loginForm').style.display = 'none';
+          document.body.classList.add('authenticated');
+
+    
+          
+        } else {
+          document.getElementById('contenido').style.display = 'none';
+          document.getElementById('loginForm').style.display = 'block';
+          document.body.classList.remove('authenticated');
+        }
+      });
+      // Función de login
+      async function login() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        console.log("Intentando login con:", email); // Para debug
+        const {
+          data,
+          error
+        } = await supabaseClient.auth.signInWithPassword({
+          email: email,
+          password: password
+        });
+        if (error) {
+          console.error("Error:", error);
+          alert("Error: " + error.message);
+        } else {
+          console.log("Login correcto", data);
+        }
+      }
+    </script>
+  </body>
+</html>
+<!-- Tu CSS -->
+<link rel="stylesheet" href="css-code.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="alertsContainer" class="alerts-container"></div>
+  <div class="modern-header">
+    <div class="header-content">
+      <div class="header-left">
+        <div class="header-icon">🏨</div>
+        <div class="header-title">
+          <h1>Sistema de gestión de incidencias en las habitaciones</h1>
+          <p>THB Flora: 200 habitaciones</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="stats-section">
+    <div class="stats-container">
+      <div class="stat-card" onclick="filterByAll()">
+        <div class="stat-icon">🏨</div>
+        <div class="stat-content">
+          <div class="stat-label">Habitaciones Totales</div>
+          <div class="stat-number">200</div>
+        </div>
+      </div>
+      <div class="stat-card" onclick="filterByStatus('libre')">
+        <div class="stat-icon">✅</div>
+        <div class="stat-content">
+          <div class="stat-label">Disponibles</div>
+          <div class="stat-number" id="libres">0</div>
+        </div>
+      </div>
+      <div class="stat-card" onclick="filterByIncidents('total-incidents')">
+        <div class="stat-icon">⚠️</div>
+        <div class="stat-content">
+          <div class="stat-label">Con Incidencias</div>
+          <div class="stat-number" id="total-incidents">0</div>
+        </div>
+      </div>
+      <div class="stat-card critical" onclick="filterByStatus('critica')">
+        <div class="stat-icon">🚨</div>
+        <div class="stat-content">
+          <div class="stat-label">Críticas</div>
+          <div class="stat-number" id="criticas">0</div>
+        </div>
+      </div>
+      <div class="stat-card" onclick="filterByStatus('bloqueada')">
+        <div class="stat-icon">🔒</div>
+        <div class="stat-content">
+          <div class="stat-label">Bloqueadas</div>
+          <div class="stat-number" id="bloqueadas">0</div>
+        </div>
+      </div>
+      <div class="stat-card alert" onclick="filterByAlerts('alertasActivas')">
+        <div class="stat-icon">🔔</div>
+        <div class="stat-content">
+          <div class="stat-label">Alertas Activas</div>
+          <div class="stat-number" id="alertasActivas">0</div>
+        </div>
+      </div>
+      <div class="stat-card" onclick="filterByExpired('caducadas')">
+        <div class="stat-icon">⏰</div>
+        <div class="stat-content">
+          <div class="stat-label">Incidencias Caducadas</div>
+          <div class="stat-number" id="caducadas">0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="controls">
+    <input type="text" id="searchRoom" class="search-input" placeholder="🔍 Buscar habitación...">
+    <select id="filterStatus" class="filter-select">
+      <option value="">Todos los estados</option>
+      <option value="libre">Solo libres</option>
+      <option value="bloqueada">Solo bloqueadas</option>
+      <option value="leve">Incidencias leves</option>
+      <option value="moderada">Incidencias moderadas</option>
+      <option value="grave">Incidencias graves</option>
+      <option value="critica">Incidencias críticas</option>
+    </select>
+    <select id="filterType" class="filter-select">
+      <option value="">Todas las tipologías</option>
+      <option value="electrico">Eléctrico</option>
+      <option value="fontaneria">Fontanería</option>
+      <option value="limpieza">Limpieza</option>
+      <option value="climatizacion">Climatización</option>
+      <option value="otro">Otro</option>
+    </select>
+    <input type="text" id="filterTag" class="search-input" placeholder="🏷️ Filtrar por etiqueta...">
+    <button class="control-btn export-btn" onclick="exportData()"> 📊 Exportar </button>
+    <button class="control-btn history-btn" onclick="openHistoryModal()"> 📋 Historial <span id="historyIndicator" class="history-indicator" style="display: none;"></span>
+    </button>
+    <button class="control-btn alert-btn" onclick="checkAlerts()"> 🔔 Alertas </button>
+    <button class="control-btn clear-btn" onclick="clearAllData()"> 🗑️ Borrar datos </button>
+  </div>
+  <div class="main-container">
+    <div class="content-area">
+      <div class="rooms-grid" id="roomsGrid"></div>
+    </div>
+    <div class="agenda-panel">
+      <div class="agenda-header">
+        <h3>📅 Calendario</h3>
+        <div class="agenda-nav">
+          <button onclick="previousMonth()">&lt;&lt;</button>
+          <span id="currentMonth" style="margin: 0 12px; font-weight: 400;"></span>
+          <button onclick="nextMonth()">&gt;&gt;</button>
+        </div>
+      </div>
+      <!-- Calendario Mensual -->
+      <div id="calendarGrid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e5e7eb; margin: 8px; border-radius: 6px; overflow: hidden;">
+        <!-- Se genera dinámicamente -->
+      </div>
+      <!-- Detalles del día seleccionado -->
+      <div style="padding: 12px; border-top: 1px solid #e5e7eb;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 id="selectedDate" style="margin: 0; color: #1e293b;">Selecciona un día</h4>
+          <button onclick="showEventModal()" style="background: #3b82f6; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px;"> + Evento </button>
+        </div>
+        <div id="dayEvents" style="max-height: 300px; overflow-y: auto;">
+          <!-- Eventos del día -->
+        </div>
+        <!-- Lista global de eventos -->
+        <div style="padding: 12px; border-top: 1px solid #e5e7eb;">
+          <h4 style="margin-bottom: 8px; color: #1e293b;">📋 Lista de todos los eventos</h4>
+          <div id="eventList" style="max-height: 300px; overflow-y: auto;">
+            <!-- Aquí se pintarán todos los eventos -->
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Fondo oscuro del modal -->
+    <div id="eventModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 3999;">
+      <div style="background: white; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); 
+                width: 300px; padding: 16px; position: absolute; top: 50%; left: 50%; 
+                transform: translate(-50%, -50%);">
+        <h5 style="margin: 0 0 12px 0;">Nuevo Evento</h5>
+        <select id="eventType" style="width: 100%; padding: 6px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 4px;">
+          <option value="nota">📝 Nota</option>
+          <option value="mantenimiento">🔧 Mantenimiento</option>
+          <option value="reserva">🏨 Reserva</option>
+          <option value="alerta">⚠️ Alerta</option>
+        </select>
+        <input type="text" id="eventTitle" placeholder="Título del evento..." style="width: 100%; padding: 6px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        <textarea id="eventDescription" placeholder="Descripción..." style="width: 100%; padding: 6px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 4px; height: 60px;"></textarea>
+        <input type="time" id="eventTime" style="width: 100%; padding: 6px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 4px;">
+        <div style="display: flex; gap: 8px;">
+          <button onclick="addCalendarEvent()" style="flex: 1; background: #22c55e; color: white; border: none; padding: 8px; border-radius: 4px;"> Guardar </button>
+          <button onclick="closeEventModal()" style="flex: 1; background: #6b7280; color: white; border: none; padding: 8px; border-radius: 4px;"> Cancelar </button>
+        </div>
+      </div>
+    </div>
+    <!-- Context Menu -->
+    <div id="contextMenu" class="context-menu" style="display: none; position: fixed; background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 4px 0; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); z-index: 2000; font-size: 13px;">
+      <div class="context-menu-item" onclick="markAsOccupied()" style="padding: 8px 12px; cursor: pointer; transition: background 0.2s;">🏠 Marcar como ocupada</div>
+      <div class="context-menu-item" onclick="markAsBlocked()" style="padding: 8px 12px; cursor: pointer; transition: background 0.2s;">🔒 Marcar como bloqueada</div>
+      <div class="context-menu-item" onclick="markAsFree()" style="padding: 8px 12px; cursor: pointer; transition: background 0.2s;">✅ Marcar como libre</div>
+    </div>
+    <!-- Modal Principal -->
+    <div id="roomModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modalTitle">Habitación 101</h2>
+          <button class="close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-tabs">
+            <button class="modal-tab active" onclick="showTab('incidents')">📋 Incidencias</button>
+            <button class="modal-tab" onclick="showTab('guest')">👤 Huésped</button>
+            <button class="modal-tab" onclick="showTab('room-notes')">📝 Notas</button>
+            <button class="modal-tab" onclick="showTab('history')">📚 Historial</button>
+          </div>
+          <!-- Pestaña de Incidencias -->
+          <div id="incidentsTab" class="tab-content active">
+            <div id="managementAlert" class="management-alert" style="display: none;">
+              <div>⚠️</div>
+              <div class="management-alert-content">
+                <strong>Atención Dirección:</strong> Esta incidencia requiere notificación inmediata a Dirección.
+              </div>
+              <button onclick="notifyManagement()">Notificar</button>
+            </div>
+            <div class="form-grid form-grid-3">
+              <div class="form-group">
+                <label for="incidentSeverity">Gravedad:</label>
+                <select id="incidentSeverity" onchange="checkManagementNotification()">
+                  <option value="leve">Leve</option>
+                  <option value="moderada">Moderada</option>
+                  <option value="grave">Grave</option>
+                  <option value="critica">Crítica</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="incidentType">Tipología:</label>
+                <select id="incidentType" onchange="updatePopularTags()">
+                  <option value="electrico">⚡ Eléctrico</option>
+                  <option value="fontaneria">💧 Fontanería</option>
+                  <option value="limpieza">🧽 Limpieza</option>
+                  <option value="climatizacion">❄️ Climatización</option>
+                  <option value="otro">🔧 Otro</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="incidentPriority">Prioridad:</label>
+                <select id="incidentPriority">
+                  <option value="baja">Baja</option>
+                  <option value="normal">Normal</option>
+                  <option value="alta">Alta</option>
+                  <option value="urgente">Urgente</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="incidentDescription">Descripción detallada:</label>
+              <textarea id="incidentDescription" placeholder="Describe la incidencia en detalle..."></textarea>
+            </div>
+            <div class="form-group">
+              <label for="incidentTag">Etiqueta/Tag:</label>
+              <div class="tag-input-container">
+                <input type="text" id="incidentTag" placeholder="Ej: aire acondicionado, toallas...">
+              </div>
+              <div class="popular-tags" id="popularTags"></div>
+            </div>
+            <div class="form-grid form-grid-2">
+              <div class="form-group">
+                <label for="reportedBy">Reportado por:</label>
+                <input type="text" id="reportedBy" placeholder="Nombre del empleado">
+              </div>
+              <div class="form-group">
+                <label for="expiryDate">Fecha límite:</label>
+                <input type="date" id="expiryDate">
+              </div>
+            </div>
+            <div class="form-grid form-grid-2">
+              <div class="form-group">
+                <label for="alertDate">Alerta - Fecha:</label>
+                <input type="date" id="alertDate">
+              </div>
+              <div class="form-group">
+                <label for="alertTime">Alerta - Hora:</label>
+                <input type="time" id="alertTime">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="alertMessage">Mensaje de recordatorio:</label>
+              <input type="text" id="alertMessage" placeholder="Ej: Recordar llamar al técnico a las 14:00">
+            </div>
+            <div style="margin: 16px 0;">
+              <button class="btn btn-primary" onclick="addIncident()">➕ Agregar incidencia</button>
+              <button class="btn btn-warning" onclick="resolveAllIncidents()">✅ Resolver todas</button>
+              <button class="btn btn-danger" onclick="clearAllIncidents()">🗑️ Eliminar todas</button>
+            </div>
+            <div class="incidents-list" id="incidentsList"></div>
+          </div>
+          <!-- Pestaña de Huésped -->
+          <div id="guestTab" class="tab-content">
+            <div class="form-grid form-grid-2">
+              <div class="form-group">
+                <label for="guestName">Nombre:</label>
+                <input type="text" id="guestName" placeholder="Nombre del huésped">
+              </div>
+              <div class="form-group">
+                <label for="guestSurname">Apellidos:</label>
+                <input type="text" id="guestSurname" placeholder="Apellidos del huésped">
+              </div>
+            </div>
+            <div class="form-grid form-grid-3">
+              <div class="form-group">
+                <label for="guestPax">Número de PAX:</label>
+                <input type="number" id="guestPax" placeholder="1" min="1">
+              </div>
+              <div class="form-group">
+                <label for="guestPhone">Teléfono:</label>
+                <input type="tel" id="guestPhone" placeholder="+34 123 456 789">
+              </div>
+              <div class="form-group">
+                <label for="guestAgency">Agencia:</label>
+                <input type="text" id="guestAgency" placeholder="Agencia/Tour Operator">
+              </div>
+            </div>
+            <div class="form-grid form-grid-2">
+              <div class="form-group">
+                <label for="checkInDate">Fecha de entrada:</label>
+                <input type="date" id="checkInDate">
+              </div>
+              <div class="form-group">
+                <label for="checkOutDate">Fecha de salida:</label>
+                <input type="date" id="checkOutDate">
+              </div>
+            </div>
+            <div style="margin: 16px 0;">
+              <button class="btn btn-success" onclick="saveGuestInfo()">💾 Guardar información</button>
+              <button class="btn btn-secondary" onclick="clearGuestInfo()">🧹 Limpiar datos</button>
+            </div>
+          </div>
+          <!-- Pestaña de Notas de Habitación -->
+          <div id="roomNotesTab" class="tab-content">
+            <div class="form-group">
+              <label for="roomDescription">Descripción de la habitación:</label>
+              <textarea id="roomDescription" placeholder="Ej: Tiene terraza grande con vistas al mar, sol por la mañana hasta las 12h, wifi potente..." style="min-height: 100px;"></textarea>
+            </div>
+            <div class="form-group">
+              <label for="roomFeatures">Características especiales:</label>
+              <input type="text" id="roomFeatures" placeholder="Ej: terraza, vistas mar, wifi premium, minibar...">
+            </div>
+            <div class="form-group">
+              <label for="roomNotes">Notas importantes:</label>
+              <textarea id="roomNotes" placeholder="Información adicional relevante para el personal..." style="min-height: 80px;"></textarea>
+            </div>
+            <div style="margin: 16px 0;">
+              <button class="btn btn-success" onclick="saveRoomNotes()">💾 Guardar notas</button>
+              <button class="btn btn-secondary" onclick="clearRoomNotes()">🧹 Limpiar notas</button>
+            </div>
+          </div>
+          <!-- Pestaña de Historial -->
+          <div id="historyTab" class="tab-content">
+            <div id="roomHistoryList">
+              <p style="text-align: center; color: #6b7280; padding: 20px;">No hay incidencias resueltas</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Modal de Historial General -->
+    <div id="historyModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>📚 Historial General de Incidencias</h2>
+          <button class="close" onclick="closeHistoryModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="controls" style="padding: 10px 0; border: none;">
+            <input type="text" id="historySearch" class="search-input" placeholder="🔍 Buscar en historial..." oninput="filterHistory()">
+            <select id="historyFilterType" class="filter-select" onchange="filterHistory()">
+              <option value="">Todas las tipologías</option>
+              <option value="electrico">Eléctrico</option>
+              <option value="fontaneria">Fontanería</option>
+              <option value="limpieza">Limpieza</option>
+              <option value="climatizacion">Climatización</option>
+              <option value="otro">Otro</option>
+            </select>
+            <select id="historyFilterSeverity" class="filter-select" onchange="filterHistory()">
+              <option value="">Todas las gravedades</option>
+              <option value="leve">Leve</option>
+              <option value="moderada">Moderada</option>
+              <option value="grave">Grave</option>
+              <option value="critica">Crítica</option>
+            </select>
+            <button class="btn btn-secondary" onclick="exportHistoryData()">📊 Exportar historial</button>
+          </div>
+          <div id="generalHistoryList"></div>
+        </div>
+      </div>
+    </div>
+    <script src="javascript-code.js"></script>
+</body>
+</html>
