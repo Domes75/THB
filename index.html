@@ -59,6 +59,24 @@
           document.getElementById('loginForm').style.display = 'block';
           document.body.classList.remove('authenticated');
         }
+        
+        // Suscripción a Realtime (poner aquí)
+if (typeof supabaseClient !== 'undefined') {
+    const incidenciasChannel = supabaseClient
+        .channel('public:incidencias')
+        .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'incidencias' },
+            (payload) => {
+                console.log('🔄 Cambio detectado en Supabase:', payload);
+                cargarIncidenciasSupabase(); // refresca la lista
+            }
+        )
+        .subscribe();
+
+    console.log('📡 Suscripción a Realtime creada:', incidenciasChannel);
+}
+
       });
       // Función de login
       async function login() {
