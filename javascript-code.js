@@ -869,6 +869,7 @@ function clearGuestInfo() {
 }
 
 // ---- Supabase helpers (funciones top-level) ----
+
 // Nota: supabaseClient debe estar definido en otro archivo globalmente.
 async function guardarIncidenciaSupabase(incidentData) {
     try {
@@ -1308,6 +1309,7 @@ function clearAllData() {
                 initializeRooms();
 
                 // Suscripción en tiempo real (si supabaseClient existe)
+              
                 if (typeof supabaseClient !== 'undefined') {
                     supabaseClient
                         .channel("incidencias-changes")
@@ -1321,7 +1323,19 @@ function clearAllData() {
                         )
                         .subscribe();
                 }
+const channel = supabaseClient
+  .channel("incidencias-changes")
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "incidencias" },
+    (payload) => {
+      console.log("🔄 Cambio detectado en Supabase:", payload);
+      cargarIncidenciasSupabase();
+    }
+  )
+  .subscribe();
 
+console.log("📡 Suscripción creada:", channel);
                 closeModal();
                 closeHistoryModal();
                 showAlert('Todos los datos han sido eliminados', 'success', 3000, true);
