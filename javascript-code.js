@@ -47,6 +47,106 @@ function setupHuespedesSubscription() {
   })
   .subscribe((status) => console.log('Huéspedes Realtime:', status));}
 
+
+let __eventosChannel;
+
+function setupEventosSubscription() {
+    console.log('Intentando configurar suscripción de eventos...', !!supabaseClient, !!__eventosChannel);
+    if (!supabaseClient) return;
+    
+    if (__eventosChannel) {
+        __eventosChannel.unsubscribe();
+        __eventosChannel = null;
+    }
+    
+    __eventosChannel = supabaseClient
+        .channel('eventos-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'calendario_eventos' }, (payload) => {
+            console.log('CALLBACK EJECUTADO - Cambio en eventos:', payload);
+            cargarEventosSupabase().then(() => {
+                renderCalendar();
+                renderDayEvents();
+                renderEventList();
+            });
+        })
+        .subscribe((status) => console.log('Eventos Realtime:', status));
+}
+
+async function cargarEventosSupabase() {
+    try {
+        const { data, error } = await supabaseClient
+            .from('calendario_eventos')
+            .select('*');
+        
+        if (error) {
+            console.error('Error al cargar eventos:', error);
+            return;
+        }
+        
+        // Limpiar eventos locales
+        calendarEvents = {};
+        
+        // Convertir datos de Supabase al formato local
+        data.forEach((evento) => {
+            const fechaKey = evento.fecha;
+            if (!calendarEvents[fechaKey]) {
+                calendarEvents[fechaKey] = [];
+            }
+            calendarEvents[fechaKey].push({
+                id: evento.id,
+                type: evento.tipo,
+                title: evento.titulo,
+                description: evento.descripcion || '',
+                time: evento.hora || '',
+                created: evento.created_at
+            });
+        });
+        
+        console.log('Eventos cargados desde Supabase:', data.length);
+        
+    } catch (err) {
+        console.error('Error en cargarEventosSupabase:', err);
+    }
+}
+
+async function guardarEventoSupabase(eventoData) {
+    try {
+        const { data, error } = await supabaseClient
+            .from("calendario_eventos")
+            .insert([eventoData])
+            .select();
+            
+        if (error) {
+            console.error("Error al guardar evento en Supabase:", error);
+            return null;
+        }
+        console.log('Evento guardado en Supabase:', data);
+        return data;
+    } catch (err) {
+        console.error('Error en guardarEventoSupabase:', err);
+        return null;
+    }
+}
+
+async function eliminarEventoSupabase(eventoId) {
+    try {
+        const { error } = await supabaseClient
+            .from("calendario_eventos")
+            .delete()
+            .eq('id', eventoId);
+            
+        if (error) {
+            console.error("Error al eliminar evento en Supabase:", error);
+            return false;
+        }
+        console.log('Evento eliminado de Supabase:', eventoId);
+        return true;
+    } catch (err) {
+        console.error('Error en eliminarEventoSupabase:', err);
+        return false;
+    }
+}
+
 // Utilidades de fecha
 function formatDateKeyLocal(d) {
     const year = d.getFullYear();
@@ -1522,6 +1622,7 @@ function initialize() {
       
         setupSupabaseSubscription();
 		setupHuespedesSubscription();
+		setupEventosSubscription();
 		
 		initializeRooms();
 
@@ -1710,33 +1811,41 @@ function closeEventModal() {
     document.getElementById("eventType").value = "nota";
 }
 
-function addCalendarEvent() {
+async function addCalendarEvent() {
     const title = document.getElementById("eventTitle")?.value.trim();
     if (!title || !selectedDate) return;
-    const event = {
-        type: document.getElementById("eventType")?.value || 'nota',
-        title: title,
-        description: document.getElementById("eventDescription")?.value.trim(),
-        time: document.getElementById("eventTime")?.value,
-        created: formatDateKeyLocal(new Date())
+    
+    const eventoData = {
+        fecha: selectedDate,
+        tipo: document.getElementById("eventType")?.value || 'nota',
+        titulo: title,
+        descripcion: document.getElementById("eventDescription")?.value.trim() || null,
+        hora: document.getElementById("eventTime")?.value || null
     };
-    if (!calendarEvents[selectedDate]) calendarEvents[selectedDate] = [];
-    calendarEvents[selectedDate].push(event);
-    localStorage.setItem("hotelCalendarEvents", JSON.stringify(calendarEvents));
-    closeEventModal();
-    renderCalendar();
-    renderDayEvents();
-    renderEventList();
+    
+    const result = await guardarEventoSupabase(eventoData);
+    if (result) {
+        await cargarEventosSupabase();
+        closeEventModal();
+        renderCalendar();
+        renderDayEvents();
+        renderEventList();
+    }
 }
 
-function deleteCalendarEvent(idx) {
+async function deleteCalendarEvent(idx) {
     if (!selectedDate) return;
-    calendarEvents[selectedDate].splice(idx, 1);
-    if (calendarEvents[selectedDate].length === 0) delete calendarEvents[selectedDate];
-    localStorage.setItem("hotelCalendarEvents", JSON.stringify(calendarEvents));
-    renderCalendar();
-    renderDayEvents();
-    renderEventList();
+    
+    const evento = calendarEvents[selectedDate][idx];
+    if (evento && evento.id) {
+        const success = await eliminarEventoSupabase(evento.id);
+        if (success) {
+            await cargarEventosSupabase();
+            renderCalendar();
+            renderDayEvents();
+            renderEventList();
+        }
+    }
 }
 
 // Inicializar calendario y lista de eventos al cargar DOM
