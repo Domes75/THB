@@ -31,13 +31,19 @@ function setupHuespedesSubscription() {
     
     __guestsChannel = supabaseClient
         .channel('huespedes-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'huespedes' }, (payload) => {
-            console.log('Cambio en huéspedes:', payload);
-            cargarHuespedesSupabase().then(() => {
-                renderRooms();
-                updateStats();
-            });
-        })
+        .on(
+            'postgres_changes', 
+            { event: '*', schema: 'public', table: 'huespedes' }, 
+            (payload) => {
+                console.log('Cambio en huéspedes:', payload);
+                cargarHuespedesSupabase().then(() => {
+                    // Forzar actualización de estados después de cargar huéspedes
+                    Object.keys(rooms).forEach(roomNum => {
+                        updateRoomStatus(roomNum);
+                    });
+                });
+            }
+        )
         .subscribe((status) => console.log('Huéspedes Realtime:', status));
 }
 
@@ -726,6 +732,9 @@ async function saveGuestInfo() {
     const result = await guardarHuespedSupabase(guestData);
     if (result) {
         await cargarHuespedesSupabase();
+        // Forzar actualización del estado de la habitación
+rooms[currentRoom].occupancyStatus = 'bloqueada';
+updateRoomStatus(currentRoom);
         showAlert('Información del huésped guardada correctamente', 'success', 3000, true);
     }
     
@@ -753,7 +762,9 @@ async function clearGuestInfo() {
         
         await cargarHuespedesSupabase();
         
-        
+        // Forzar actualización del estado de la habitación
+        rooms[currentRoom].occupancyStatus = 'libre';
+        updateRoomStatus(currentRoom);
         renderRooms();
         updateStats();
         showAlert('Información del huésped eliminada', 'info', 3000, true);
@@ -936,6 +947,20 @@ async function cargarHuespedesSupabase() {
                 }
             });
         }
+        
+        // Actualizar estados de ocupación basados en los datos cargados
+Object.keys(rooms).forEach(roomNum => {
+    const hasGuest = data.find(h => h.habitacion == roomNum);
+    if (hasGuest) {
+        rooms[roomNum].occupancyStatus = 'bloqueada';
+    } else {
+        rooms[roomNum].occupancyStatus = 'libre';
+    }
+    updateRoomStatus(roomNum);
+});
+
+renderRooms();
+updateStats();
         
     } catch (err) {
         console.error('Error en cargarHuespedesSupabase:', err);
