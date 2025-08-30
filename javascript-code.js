@@ -749,7 +749,7 @@ async function clearGuestInfo() {
         const { error } = await supabaseClient
             .from("huespedes")
             .update({ activo: false })
-.eq('habitacion', currentRoom);
+            .eq('habitacion', currentRoom);
             
         if (error) {
             console.error("Error al eliminar huésped en Supabase:", error);
@@ -767,6 +767,7 @@ async function clearGuestInfo() {
         showAlert('Información del huésped eliminada', 'info', 3000, true);
     }
 }
+
 // ---- Supabase helpers (funciones top-level) ----
 
 // Nota: supabaseClient debe estar definido en otro archivo globalmente.
