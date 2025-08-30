@@ -28,10 +28,14 @@ let __guestsChannel;
 
 function setupHuespedesSubscription() {
     console.log('Intentando configurar suscripción de huéspedes...', !!supabaseClient, !!__guestsChannel);
-    if (!supabaseClient || __guestsChannel) return;
+    if (!supabaseClient) return; // Quitar la verificación de __guestsChannel
     
+    if (__guestsChannel) {
+        __guestsChannel.unsubscribe(); // Desuscribir el anterior
+        __guestsChannel = null;
+    }    
     __guestsChannel = supabaseClient
-  .channel('huespedes-realtime')
+    .channel('huespedes-realtime-test') // Cambiar nombre del canal
   .on('postgres_changes', { event: '*', schema: 'public', table: 'huespedes' }, (payload) => {
       console.log('CALLBACK EJECUTADO - Cambio en huéspedes:', payload);
       cargarHuespedesSupabase().then(() => {
