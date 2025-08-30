@@ -937,9 +937,6 @@ async function cargarHuespedesSupabase() {
             });
         }
         
-        renderRooms();
-        updateStats();
-        
     } catch (err) {
         console.error('Error en cargarHuespedesSupabase:', err);
     }
