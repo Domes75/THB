@@ -27,25 +27,21 @@ function setupSupabaseSubscription() {
 let __guestsChannel;
 
 function setupHuespedesSubscription() {
+    console.log('Intentando configurar suscripción de huéspedes...', !!supabaseClient, !!__guestsChannel);
     if (!supabaseClient || __guestsChannel) return;
     
     __guestsChannel = supabaseClient
-        .channel('huespedes-realtime')
-        .on(
-            'postgres_changes', 
-            { event: '*', schema: 'public', table: 'huespedes' }, 
-            (payload) => {
-                console.log('Cambio en huéspedes:', payload);
-                cargarHuespedesSupabase().then(() => {
-                    // Forzar actualización de estados después de cargar huéspedes
-                    Object.keys(rooms).forEach(roomNum => {
-                        updateRoomStatus(roomNum);
-                    });
-                });
-            }
-        )
-        .subscribe((status) => console.log('Huéspedes Realtime:', status));
-}
+  .channel('huespedes-realtime')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'huespedes' }, (payload) => {
+      console.log('CALLBACK EJECUTADO - Cambio en huéspedes:', payload);
+      cargarHuespedesSupabase().then(() => {
+          // Forzar actualización de estados después de cargar huéspedes
+          Object.keys(rooms).forEach(roomNum => {
+              updateRoomStatus(roomNum);
+          });
+      });
+  })
+  .subscribe((status) => console.log('Huéspedes Realtime:', status));}
 
 // Utilidades de fecha
 function formatDateKeyLocal(d) {
@@ -729,8 +725,9 @@ async function saveGuestInfo() {
         fecha_salida: document.getElementById('checkOutDate').value || null
     };
 
-    const result = await guardarHuespedSupabase(guestData);
-    if (result) {
+    console.log('Guardando huésped:', guestData);
+const result = await guardarHuespedSupabase(guestData);
+console.log('Resultado guardar huésped:', result);    if (result) {
         await cargarHuespedesSupabase();
         // Forzar actualización del estado de la habitación
 rooms[currentRoom].occupancyStatus = 'bloqueada';
@@ -872,29 +869,46 @@ Object.keys(rooms).forEach(roomNum => {
 
 async function guardarHuespedSupabase(guestData) {
     try {
-        // Eliminar huésped previo de esa habitación
-        await supabaseClient
+        // Primero verificar si ya existe
+        const { data: existing } = await supabaseClient
             .from("huespedes")
-            .delete()
-            .eq('habitacion', guestData.habitacion);
+            .select('id')
+            .eq('habitacion', guestData.habitacion)
+            .eq('activo', true);
             
-        // Insertar nuevo huésped
-        const { data, error } = await supabaseClient
-            .from("huespedes")
-            .insert([guestData])
-            .select();
-            
+        let data, error;
+        
+        if (existing && existing.length > 0) {
+            // Actualizar existente
+            const result = await supabaseClient
+                .from("huespedes")
+                .update(guestData)
+                .eq('habitacion', guestData.habitacion)
+                .eq('activo', true)
+                .select();
+            data = result.data;
+            error = result.error;
+        } else {
+            // Insertar nuevo
+            const result = await supabaseClient
+                .from("huespedes")
+                .insert([guestData])
+                .select();
+            data = result.data;
+            error = result.error;
+        }
+        
         if (error) {
             console.error("Error al guardar huésped en Supabase:", error);
             return null;
         }
+        console.log('Huésped guardado en Supabase:', data);
         return data;
     } catch (err) {
         console.error('Error en guardarHuespedSupabase:', err);
         return null;
     }
 }
-
 async function cargarHuespedesSupabase() {
     try {
         const { data, error } = await supabaseClient
