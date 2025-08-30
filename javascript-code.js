@@ -1235,6 +1235,42 @@ async function removeIncident(incidentId) {
 }
 
 
+async function resolveIncident(incidentId) {
+    if (!currentRoom) return;
+
+    // Buscar la incidencia en la habitación actual
+    const incident = rooms[currentRoom]?.incidents.find(i => i.id === incidentId);
+    if (incident) {
+        // 🔹 Guardar en historial antes de marcar como resuelta
+        resolvedIncidents.push({
+            ...incident,
+            roomNumber: currentRoom,
+            resolvedDate: new Date(),
+            resolvedBy: "Sistema (Resolver una)"
+        });
+    }
+
+    // Marca como resuelta en Supabase
+    const { error } = await supabaseClient
+        .from('incidencias')
+        .update({ resuelta: true })
+        .eq('id', incidentId);
+
+    if (error) {
+        console.error('❌ Error al resolver en Supabase:', error);
+        showAlert('Error al resolver incidencia en Supabase', 'error', 3000, true);
+        return;
+    }
+
+    // Refresca desde Supabase para que todas las sesiones vean el cambio
+    await cargarIncidenciasSupabase();
+    renderIncidents();
+    renderGeneralHistory();  // 🔹 refrescar historial
+    updateHistoryIndicator();
+
+    showAlert('Incidencia resuelta', 'success', 3000, true);
+}
+
 async function resolveAllIncidents() {
     if (!currentRoom) return;
 
@@ -1246,6 +1282,16 @@ async function resolveAllIncidents() {
 
     try {
         const ids = roomIncidents.map(inc => inc.id);
+
+        // 🔹 Guardar todas en historial antes de resolver
+        roomIncidents.forEach(inc => {
+            resolvedIncidents.push({
+                ...inc,
+                roomNumber: currentRoom,
+                resolvedDate: new Date(),
+                resolvedBy: "Sistema (Resolver todas)"
+            });
+        });
 
         const { error } = await supabaseClient
             .from("incidencias")
@@ -1259,13 +1305,16 @@ async function resolveAllIncidents() {
         }
 
         await cargarIncidenciasSupabase();
+        renderIncidents();
+        renderGeneralHistory(); // 🔹 refrescar historial general
+        updateHistoryIndicator();
+
         showAlert("✅ Todas las incidencias de la habitación han sido resueltas", "success", 3000, true);
 
     } catch (err) {
         console.error("Error en resolveAllIncidents:", err);
     }
 }
-
 async function clearAllIncidents() {
     if (!currentRoom) return;
 
