@@ -10,6 +10,37 @@ let managementNotifications = [];
 
 
 
+let __incidentsChannel;
+
+function setupSupabaseSubscription() {
+  if (!supabaseClient || __incidentsChannel) return;
+
+  __incidentsChannel = supabaseClient
+    .channel('incidencias-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'incidencias' }, (payload) => {
+      // Cada cambio en la tabla refresca la vista
+      cargarIncidenciasSupabase();
+    })
+    .subscribe((status) => console.log('Realtime:', status));
+}
+
+let __guestsChannel;
+
+function setupHuespedesSubscription() {
+    if (!supabaseClient || __guestsChannel) return;
+    
+    __guestsChannel = supabaseClient
+        .channel('huespedes-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'huespedes' }, (payload) => {
+            console.log('Cambio en huéspedes:', payload);
+            cargarHuespedesSupabase().then(() => {
+                renderRooms();
+                updateStats();
+            });
+        })
+        .subscribe((status) => console.log('Huéspedes Realtime:', status));
+}
+
 // Utilidades de fecha
 function formatDateKeyLocal(d) {
     const year = d.getFullYear();
@@ -214,7 +245,7 @@ function notifyManagement() {
         status: 'pending'
     };
     managementNotifications.push(notification);
-    saveData();
+
     showAlert(`Notificación enviada a dirección para habitación ${roomNumber}. Se recomienda contactar con el huésped.`, 'success', 5000, true);
     const guestMessage = generateGuestMessage(severity, description);
     showAlert(`Mensaje sugerido para el huésped: "${guestMessage}"`, 'info', 8000, true);
@@ -228,63 +259,6 @@ function generateGuestMessage(severity, description) {
     return messages[severity] || 'Estimado huésped, estamos trabajando para resolver una incidencia en su habitación.';
 }
 
-// Guardar/leer datos localStorage
-function loadData() {
-    try {
-        const savedRooms = localStorage.getItem('hotelRooms');
-        const savedHistory = localStorage.getItem('hotelResolvedIncidents');
-        const savedNotifications = localStorage.getItem('hotelManagementNotifications');
-
-        if (savedRooms) {
-            const parsedRooms = JSON.parse(savedRooms);
-            Object.values(parsedRooms).forEach(room => {
-                room.incidents.forEach(incident => {
-                    // convertir strings a Date cuando corresponde
-                    if (incident.date) incident.date = new Date(incident.date);
-                });
-                if (!room.roomInfo) {
-                    room.roomInfo = { description: '', features: '', notes: '' };
-                }
-                if (!room.guest) {
-                    room.guest = { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' };
-                }
-                if (!room.guest.phone) {
-                    room.guest.phone = '';
-                }
-            });
-            rooms = parsedRooms;
-        }
-
-        if (savedHistory) {
-            const parsedHistory = JSON.parse(savedHistory);
-            resolvedIncidents = parsedHistory.map(incident => ({
-                ...incident,
-                date: new Date(incident.date),
-                resolvedDate: new Date(incident.resolvedDate)
-            }));
-        }
-
-        if (savedNotifications) {
-            managementNotifications = JSON.parse(savedNotifications);
-        }
-
-        return !!savedRooms;
-    } catch (error) {
-        console.error('Error cargando datos:', error);
-        return false;
-    }
-}
-
-function saveData() {
-    try {
-        localStorage.setItem('hotelRooms', JSON.stringify(rooms));
-        localStorage.setItem('hotelResolvedIncidents', JSON.stringify(resolvedIncidents));
-        localStorage.setItem('hotelManagementNotifications', JSON.stringify(managementNotifications));
-    } catch (error) {
-        console.error('Error guardando datos:', error);
-        showAlert('Error al guardar los datos', 'error', 3000, true);
-    }
-}
 
 // Notas habitación
 function saveRoomNotes() {
@@ -294,7 +268,7 @@ function saveRoomNotes() {
     room.roomInfo.description = document.getElementById('roomDescription')?.value.trim() || '';
     room.roomInfo.features = document.getElementById('roomFeatures')?.value.trim() || '';
     room.roomInfo.notes = document.getElementById('roomNotes')?.value.trim() || '';
-    saveData();
+ 
     renderRooms();
     showAlert('Notas de habitación guardadas correctamente', 'success', 3000, true);
 }
@@ -306,7 +280,7 @@ function clearRoomNotes() {
         document.getElementById('roomDescription').value = '';
         document.getElementById('roomFeatures').value = '';
         document.getElementById('roomNotes').value = '';
-        saveData();
+    
         renderRooms();
         showAlert('Notas eliminadas', 'info', 3000, true);
     }
@@ -337,132 +311,29 @@ function updateHistoryIndicator() {
     indicator.style.display = resolvedIncidents.length > 0 ? 'block' : 'none';
 }
 
-// Inicializar habitaciones
-function initializeRooms() {
-    if (loadData()) {
-        console.log('Datos cargados desde localStorage');
-    } else {
-        for (let i = 1; i <= 200; i++) {
-            rooms[i] = {
-                number: i,
-                incidents: [],
-                status: 'libre',
-                guest: {
-                    name: '',
-                    surname: '',
-                    pax: 0,
-                    phone: '',
-                    agency: '',
-                    checkIn: '',
-                    checkOut: ''
-                },
-                roomInfo: {
-                    description: '',
-                    features: '',
-                    notes: ''
-                },
-                occupancyStatus: 'libre'
-            };
-        }
-        addSampleIncidents();
-    }
-    renderRooms();
-    updateStats();
-    updateHistoryIndicator();
-}
-
-function addSampleIncidents() {
-    const sampleIncidents = [{
-            room: 101,
-            severity: 'moderada',
-            type: 'limpieza',
-            description: 'Cambiar sábanas y limpiar baño',
-            reportedBy: 'María García',
-            tag: 'cambio sábanas',
-            expiry: getDateInDays(2),
-            priority: 'normal'
-        },
-        {
-            room: 205,
-            severity: 'grave',
-            type: 'climatizacion',
-            description: 'Aire acondicionado no funciona',
-            reportedBy: 'Juan Pérez',
-            tag: 'aire no funciona',
-            expiry: getDateInDays(1),
-            priority: 'alta'
-        },
-        {
-            room: 150,
-            severity: 'critica',
-            type: 'fontaneria',
-            description: 'Fuga de agua en el baño',
-            reportedBy: 'Ana López',
-            tag: 'goteo grifo',
-            expiry: getDateInDays(0),
-            priority: 'urgente',
-            alert: 'Llamar urgente al fontanero'
-        },
-        {
-            room: 178,
-            severity: 'leve',
-            type: 'electrico',
-            description: 'Bombilla fundida en lámpara principal',
-            reportedBy: 'Laura Martín',
-            tag: 'bombilla fundida',
-            expiry: getDateInDays(2),
-            priority: 'baja'
-        }
-    ];
-
-    if (rooms[110]) {
-        rooms[110].status = 'bloqueada';
-        rooms[110].guest = {
-            name: 'Carlos',
-            surname: 'Rodríguez',
-            pax: 2,
-            phone: '+34 666 123 456',
-            agency: 'Booking.com',
-            checkIn: '2025-08-14',
-            checkOut: '2025-08-18'
-        };
-        rooms[110].roomInfo = {
-            description: 'Habitación con terraza grande, sol de mañana hasta las 12h, vistas parciales al mar',
-            features: 'terraza, vistas mar, wifi premium',
-            notes: 'Huéspedes habituales, prefieren habitaciones altas'
-        };
+   
+    
+    // Cargar datos más recientes desde Supabase después de inicializar localmente
+    if (typeof supabaseClient !== 'undefined') {
+        cargarIncidenciasSupabase().then(() => {
+            console.log('Datos sincronizados desde Supabase');
+            renderRooms();
+            updateStats();
+        });
     }
 
-    if (rooms[145]) {
-        rooms[145].status = 'bloqueada';
-        rooms[145].guest = {
-            name: 'Anna',
-            surname: 'Smith',
-            pax: 1,
-            phone: '+44 789 456 123',
-            agency: 'Expedia',
-            checkIn: '2025-08-15',
-            checkOut: '2025-08-16'
-        };
-        rooms[145].roomInfo = {
-            description: 'Habitación interior, muy silenciosa, ideal para descanso',
-            features: 'silenciosa, aire acondicionado nuevo',
-            notes: 'Cliente sensible al ruido'
-        };
-    }
 
-    sampleIncidents.forEach(incident => {
-        if (rooms[incident.room]) {
-            rooms[incident.room].incidents.push({
-                ...incident,
-                date: new Date(),
-                id: Date.now() + Math.random()
-            });
-            updateRoomStatus(incident.room);
-        }
+
+
+
+
+// Cargar datos más recientes desde Supabase después de inicializar localmente
+if (typeof supabaseClient !== 'undefined') {
+    Promise.all([cargarIncidenciasSupabase(), cargarHuespedesSupabase()]).then(() => {
+        console.log('Datos sincronizados desde Supabase');
+        renderRooms();
+        updateStats();
     });
-
-    saveData();
 }
 
 function getRoomMainTags(room) {
@@ -491,32 +362,28 @@ function getRoomMainIcon(room) {
 }
 
 function sortRoomsByPriority() {
-    const roomNumbers = Object.keys(rooms).map(Number);
-    return roomNumbers.sort((a, b) => {
-        const roomA = rooms[a];
-        const roomB = rooms[b];
-        const statusPriority = {
-            'critica': 5,
-            'grave': 4,
-            'moderada': 3,
-            'leve': 2,
-            'bloqueada': 1,
-            'libre': 0
-        };
-        const priorityA = statusPriority[roomA.status] || 0;
-        const priorityB = statusPriority[roomB.status] || 0;
-        if (priorityA !== priorityB) {
-            return priorityB - priorityA;
-        }
-        if (roomA.incidents.length > 0 && roomB.incidents.length > 0) {
-            const oldestA = Math.min(...roomA.incidents.map(i => i.date.getTime()));
-            const oldestB = Math.min(...roomB.incidents.map(i => i.date.getTime()));
-            return oldestA - oldestB;
-        }
-        if (roomA.incidents.length > 0 && roomB.incidents.length === 0) return -1;
-        if (roomA.incidents.length === 0 && roomB.incidents.length > 0) return 1;
-        return a - b;
-    });
+  const roomNumbers = Object.keys(rooms).map(Number);
+  const statusPriority = { critica: 5, grave: 4, moderada: 3, leve: 2, bloqueada: 1, libre: 0 };
+
+  return roomNumbers.sort((a, b) => {
+    const A = rooms[a], B = rooms[b];
+    const pa = statusPriority[A.status] ?? 0;
+    const pb = statusPriority[B.status] ?? 0;
+    if (pa !== pb) return pb - pa;
+
+    const hasA = A.incidents && A.incidents.length > 0;
+    const hasB = B.incidents && B.incidents.length > 0;
+    if (hasA && hasB) {
+      const oldestA = Math.min(...A.incidents.map(i => new Date(i.date).getTime()));
+      const oldestB = Math.min(...B.incidents.map(i => new Date(i.date).getTime()));
+      return oldestA - oldestB;
+    }
+    if (hasA) return -1;
+    if (hasB) return 1;
+
+    // sin incidencias: orden numérico ascendente
+    return a - b;
+  });
 }
 
 // Renderizar habitaciones
@@ -568,20 +435,28 @@ function renderFilteredRooms(filteredRooms) {
 function renderRooms() {
     const grid = document.getElementById('roomsGrid');
     if (!grid) return;
+
     const searchTerm = document.getElementById('searchRoom')?.value.toLowerCase() || '';
     const filterStatus = document.getElementById('filterStatus')?.value || '';
     const filterType = document.getElementById('filterType')?.value || '';
     const filterTag = document.getElementById('filterTag')?.value.toLowerCase() || '';
+
     grid.innerHTML = '';
+
     const sortedRoomNumbers = sortRoomsByPriority();
+
     sortedRoomNumbers.forEach(roomNumber => {
         const room = rooms[roomNumber];
         if (!room) return;
-        if (searchTerm && !room.number.toString().includes(searchTerm)) return;
-        if (filterStatus && room.status !== filterStatus) return;
-        if (filterType && !room.incidents.some(incident => incident.type === filterType)) return;
+
+        // 🚨 en lugar de "return" cuando no cumple, marcamos un flag
+        let matches = true;
+
+        if (searchTerm && !room.number.toString().includes(searchTerm)) matches = false;
+        if (filterStatus && room.status !== filterStatus) matches = false;
+        if (filterType && !room.incidents.some(incident => incident.type === filterType)) matches = false;
         if (filterTag && !room.incidents.some(incident =>
-                incident.tag && incident.tag.toLowerCase().includes(filterTag))) return;
+            incident.tag && incident.tag.toLowerCase().includes(filterTag))) matches = false;
 
         const roomCard = document.createElement('div');
         roomCard.className = `room-card ${room.status}`;
@@ -606,22 +481,25 @@ function renderRooms() {
         const mainIcon = getRoomMainIcon(room);
         const mainTags = getRoomMainTags(room);
         const hasNotes = room.roomInfo && (room.roomInfo.description || room.roomInfo.features || room.roomInfo.notes);
+        const hasGuest = room.guest && (room.guest.name || room.guest.surname);
+
+        // 🚨 si no coincide con los filtros, lo mostramos igual pero "apagado"
+        const opacity = matches ? "1" : "0.3";
 
         roomCard.innerHTML = `
-                   <div class="room-number">${room.number}</div>
-                   <div class="room-status">${getStatusText(room.status)}</div>
+            <div class="room-number" style="opacity:${opacity}">${room.number}</div>
+            <div class="room-status" style="opacity:${opacity}">${getStatusText(room.status)}</div>
+            ${hasNotes ? `<div class="notes-icon" style="opacity:${opacity}; position: absolute; bottom: 4px; left: 4px; background: #3b82f6; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px;">📝</div>` : ''}
+            ${hasGuest ? `<div class="guest-icon" style="position: absolute; top: 4px; right: 4px; background: #22c55e; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px;">👤</div>` : ''}
+            ${guestInfo}
+            ${mainIcon ? `<div class="incident-type-icon" style="opacity:${opacity}">${mainIcon}</div>` : ''}
+            ${mainTags.length > 0 ? `<div class="room-tags">${mainTags.map(tag => `<div class="room-tag" style="opacity:${opacity}">${tag}</div>`).join('')}</div>` : ''}
+            ${incidentBadges ? `<div class="incident-badges" style="opacity:${opacity}">${incidentBadges}</div>` : ''}
+        `;
 
-                   ${hasNotes ? `<div class="notes-icon" style="position: absolute; bottom: 4px; left: 4px; background: #3b82f6; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px;">📝</div>` : ''}
-
-                   ${guestInfo}
-                   ${mainIcon ? `<div class="incident-type-icon">${mainIcon}</div>` : ''}
-                   ${mainTags.length > 0 ? `<div class="room-tags">${mainTags.map(tag => `<div class="room-tag">${tag}</div>`).join('')}</div>` : ''}
-                   ${incidentBadges ? `<div class="incident-badges">${incidentBadges}</div>` : ''}
-               `;
         grid.appendChild(roomCard);
     });
 }
-
 function getOccupancyText(occupancyStatus) {
     const occupancyMap = {
         'libre': 'Libre',
@@ -664,7 +542,7 @@ function markAsOccupied() {
         if (rooms[contextMenuRoom].incidents.length === 0) {
             rooms[contextMenuRoom].status = 'ocupada';
         }
-        saveData();
+       
         renderRooms();
         updateStats();
         openModal(contextMenuRoom, 'guest');
@@ -678,7 +556,7 @@ function markAsBlocked() {
         if (rooms[contextMenuRoom].incidents.length === 0) {
             rooms[contextMenuRoom].status = 'bloqueada';
         }
-        saveData();
+  
         renderRooms();
         updateStats();
     }
@@ -692,7 +570,7 @@ function markAsFree() {
         if (rooms[contextMenuRoom].incidents.length === 0) {
             rooms[contextMenuRoom].status = 'libre';
         }
-        saveData();
+       
         renderRooms();
         updateStats();
     }
@@ -831,43 +709,56 @@ function clearIncidentForm() {
     const ma = document.getElementById('managementAlert'); if (ma) ma.style.display = 'none';
 }
 
-function saveGuestInfo() {
+async function saveGuestInfo() {
     if (!currentRoom) return;
-    const room = rooms[currentRoom];
-    room.guest = {
-        name: document.getElementById('guestName').value.trim(),
-        surname: document.getElementById('guestSurname').value.trim(),
+    
+    const guestData = {
+        habitacion: currentRoom,
+        nombre: document.getElementById('guestName').value.trim(),
+        apellidos: document.getElementById('guestSurname').value.trim(),
         pax: parseInt(document.getElementById('guestPax').value) || 0,
-        phone: document.getElementById('guestPhone').value.trim(),
-        agency: document.getElementById('guestAgency').value.trim(),
-        checkIn: document.getElementById('checkInDate').value,
-        checkOut: document.getElementById('checkOutDate').value
+        telefono: document.getElementById('guestPhone').value.trim(),
+        agencia: document.getElementById('guestAgency').value.trim(),
+        fecha_entrada: document.getElementById('checkInDate').value || null,
+        fecha_salida: document.getElementById('checkOutDate').value || null
     };
-    if (room.guest.name || room.guest.surname) {
-        room.status = 'bloqueada';
+
+    const result = await guardarHuespedSupabase(guestData);
+    if (result) {
+        await cargarHuespedesSupabase();
+        showAlert('Información del huésped guardada correctamente', 'success', 3000, true);
     }
-    updateRoomStatus(currentRoom);
-    saveData();
-    renderRooms();
-    updateStats();
+    
+    if (result) {
+    await cargarHuespedesSupabase();
+    renderRooms(); // <-- AGREGAR ESTA LÍNEA
+    updateStats(); // <-- Y ESTA TAMBIÉN
     showAlert('Información del huésped guardada correctamente', 'success', 3000, true);
 }
+}
 
-function clearGuestInfo() {
+async function clearGuestInfo() {
     if (!currentRoom) return;
     if (confirm('¿Estás seguro de que quieres limpiar toda la información del huésped?')) {
-        rooms[currentRoom].guest = { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' };
-        ['guestName', 'guestSurname', 'guestPax', 'guestPhone', 'guestAgency', 'checkInDate', 'checkOutDate'].forEach(id => {
-            const el = document.getElementById(id); if (el) el.value = '';
-        });
-        updateRoomStatus(currentRoom);
-        saveData();
+        const { error } = await supabaseClient
+            .from("huespedes")
+            .update({ activo: false })
+.eq('habitacion', currentRoom);
+            
+        if (error) {
+            console.error("Error al eliminar huésped en Supabase:", error);
+            showAlert("Error al eliminar huésped en Supabase", "error", 3000, true);
+            return;
+        }
+        
+        await cargarHuespedesSupabase();
+        
+        
         renderRooms();
         updateStats();
         showAlert('Información del huésped eliminada', 'info', 3000, true);
     }
 }
-
 // ---- Supabase helpers (funciones top-level) ----
 
 // Nota: supabaseClient debe estar definido en otro archivo globalmente.
@@ -890,80 +781,184 @@ async function guardarIncidenciaSupabase(incidentData) {
     }
 }
 
-async function cargarIncidenciasSupabase() {
-    try {
-        const { data, error } = await supabaseClient
-            .from("incidencias")
-            .select("*")
-            .eq("resuelta", false);
-
-        if (error) {
-            console.error("❌ Error al cargar incidencias:", error);
-            return [];
-        }
-
-        console.log("📥 Incidencias cargadas desde Supabase:", data);
-
-        // Reset local incidencias
-        Object.keys(rooms).forEach(roomNum => {
-            rooms[roomNum].incidents = [];
-        });
-
-        data.forEach(incident => {
-            const roomNum = incident.habitacion;
-            if (!rooms[roomNum]) {
-                rooms[roomNum] = {
-                    number: roomNum,
-                    incidents: [],
-                    status: 'libre',
-                    guest: {},
-                    roomInfo: {},
-                    occupancyStatus: 'libre'
-                };
-            }
-
-            const localIncident = {
-                id: incident.id,
-                severity: incident.gravedad,
-                type: incident.tipo,
-                priority: incident.prioridad,
-                description: incident.descripcion,
-                tag: incident.etiqueta,
-                reportedBy: incident.reportado_por,
-                date: new Date(incident.fecha_creacion),
-                expiry: incident.fecha_limite,
-                resolved: incident.resuelta,
-                alert: incident.alerta || null,
-                alertDate: incident.fecha_alerta || null,
-                alertTime: incident.hora_alerta || null
+function initializeRooms() {
+    // Solo crear habitaciones que no existan ya
+    for (let i = 1; i <= 200; i++) {
+        if (!rooms[i]) {
+            rooms[i] = {
+                number: i,
+                incidents: [],
+                status: 'libre',
+                guest: { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' },
+                roomInfo: { description: '', features: '', notes: '' },
+                occupancyStatus: 'libre'
             };
-
-            rooms[roomNum].incidents.push(localIncident);
-            updateRoomStatus(roomNum);
-        });
-
-        renderRooms();
-        updateStats();
-        saveData();
-        return data;
-    } catch (err) {
-        console.error('Error en cargarIncidenciasSupabase:', err);
-        return [];
+        }
     }
 }
 
-// Añadir incidencia (top-level)
+async function cargarIncidenciasSupabase() {
+  try {
+    const { data, error } = await supabaseClient
+      .from('incidencias')
+      .select('*')
+      .eq('resuelta', false);
+
+    if (error) {
+      console.error('❌ Error al cargar incidencias:', error);
+      return [];
+    }
+
+    // Limpia solo las incidencias, no las habitaciones
+    Object.keys(rooms).forEach((roomNum) => {
+      rooms[roomNum].incidents = [];
+    });
+
+    // Inserta incidencias en sus habitaciones (si llega una fuera de rango, la “esqueletiza”)
+    data.forEach((inc) => {
+    
+    // AGREGAR ESTAS LÍNEAS:
+Object.keys(rooms).forEach(roomNum => {
+  updateRoomStatus(roomNum);
+});
+      const n = inc.habitacion;
+      if (!rooms[n]) {
+        rooms[n] = {
+          number: n,
+          incidents: [],
+          status: 'libre',
+          guest: { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' },
+          roomInfo: { description: '', features: '', notes: '' },
+          occupancyStatus: 'libre'
+        };
+      }
+      rooms[n].incidents.push({
+        id: inc.id,
+        severity: inc.gravedad,
+        type: inc.tipo,
+        priority: inc.prioridad,
+        description: inc.descripcion,
+        tag: inc.etiqueta,
+        reportedBy: inc.reportado_por,
+        date: new Date(inc.fecha_creacion),
+        expiry: inc.fecha_limite,
+        resolved: inc.resuelta,
+        alert: inc.alerta || null,
+        alertDate: inc.fecha_alerta || null,
+        alertTime: inc.hora_alerta || null
+      });
+      updateRoomStatus(n);
+    });
+
+    renderRooms();
+    updateStats();
+    return data;
+  } catch (err) {
+    console.error('Error en cargarIncidenciasSupabase:', err);
+    return [];
+  }
+}
+
+async function guardarHuespedSupabase(guestData) {
+    try {
+        // Eliminar huésped previo de esa habitación
+        await supabaseClient
+            .from("huespedes")
+            .delete()
+            .eq('habitacion', guestData.habitacion);
+            
+        // Insertar nuevo huésped
+        const { data, error } = await supabaseClient
+            .from("huespedes")
+            .insert([guestData])
+            .select();
+            
+        if (error) {
+            console.error("Error al guardar huésped en Supabase:", error);
+            return null;
+        }
+        return data;
+    } catch (err) {
+        console.error('Error en guardarHuespedSupabase:', err);
+        return null;
+    }
+}
+
+async function cargarHuespedesSupabase() {
+    try {
+        const { data, error } = await supabaseClient
+    .from('huespedes')
+    .select('*')
+    .eq('activo', true);
+        
+        if (error) {
+            console.error('Error al cargar huéspedes:', error);
+            return;
+        }
+        
+        // Limpiar todos los huéspedes antes de cargar
+        Object.keys(rooms).forEach(roomNum => {
+            rooms[roomNum].guest = { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' };
+        });
+        
+        data.forEach((huesped) => {
+            const roomNum = huesped.habitacion;
+            if (rooms[roomNum]) {
+                rooms[roomNum].guest = {
+                    name: huesped.nombre || '',
+                    surname: huesped.apellidos || '',
+                    pax: huesped.pax || 0,
+                    phone: huesped.telefono || '',
+                    agency: huesped.agencia || '',
+                    checkIn: huesped.fecha_entrada || '',
+                    checkOut: huesped.fecha_salida || ''
+                };
+                updateRoomStatus(roomNum);
+            }
+        });
+
+        // MOVER ESTE BLOQUE AQUÍ - fuera del forEach
+        if (currentRoom) {
+            const room = rooms[currentRoom];
+            const roomInfo = room.guest || {};
+            ['guestName', 'guestSurname', 'guestPax', 'guestPhone', 'guestAgency', 'checkInDate', 'checkOutDate'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    switch(id) {
+                        case 'guestName': el.value = roomInfo.name || ''; break;
+                        case 'guestSurname': el.value = roomInfo.surname || ''; break;
+                        case 'guestPax': el.value = roomInfo.pax || ''; break;
+                        case 'guestPhone': el.value = roomInfo.phone || ''; break;
+                        case 'guestAgency': el.value = roomInfo.agency || ''; break;
+                        case 'checkInDate': el.value = roomInfo.checkIn || ''; break;
+                        case 'checkOutDate': el.value = roomInfo.checkOut || ''; break;
+                    }
+                }
+            });
+        }
+        
+        renderRooms();
+        updateStats();
+        
+    } catch (err) {
+        console.error('Error en cargarHuespedesSupabase:', err);
+    }
+}
+
+
+
 async function addIncident() {
     if (!currentRoom) return;
+
     const severity = document.getElementById("incidentSeverity")?.value;
     const type = document.getElementById("incidentType")?.value;
     const priority = document.getElementById("incidentPriority")?.value;
     const description = document.getElementById("incidentDescription")?.value.trim();
     const tag = document.getElementById("incidentTag")?.value.trim();
     const reportedBy = document.getElementById("reportedBy")?.value.trim();
-    const expiryDate = document.getElementById("expiryDate")?.value;
-    const alertDate = document.getElementById("alertDate")?.value;
-    const alertTime = document.getElementById("alertTime")?.value;
+    const expiryDate = document.getElementById("expiryDate")?.value || null;
+    const alertDate = document.getElementById("alertDate")?.value || null;
+    const alertTime = document.getElementById("alertTime")?.value || null;
     const alertMessage = document.getElementById("alertMessage")?.value.trim();
 
     if (!description) {
@@ -972,20 +967,22 @@ async function addIncident() {
     }
 
     const incidentData = {
-        habitacion: currentRoom,
-        descripcion: description,
-        gravedad: severity,
-        tipo: type,
-        prioridad: priority,
-        etiqueta: tag || "sin etiqueta",
-        reportado_por: reportedBy || "No especificado",
-        fecha_creacion: new Date().toISOString(),
-        fecha_limite: expiryDate || null,
-        resuelta: false,
-        alerta: alertMessage || null,
-        fecha_alerta: alertDate || null,
-        hora_alerta: alertTime || null
+        habitacion: parseInt(currentRoom, 10),           // INTEGER NOT NULL
+        descripcion: description,                        // TEXT NOT NULL
+        gravedad: severity,                              // TEXT NOT NULL
+        tipo: type,                                      // TEXT NOT NULL
+        prioridad: priority,                             // TEXT NOT NULL
+        etiqueta: tag || "sin etiqueta",                 // TEXT
+        reportado_por: reportedBy || "No especificado",  // TEXT
+        fecha_creacion: new Date().toISOString(),        // TIMESTAMPTZ
+        fecha_limite: expiryDate,                        // DATE
+        resuelta: false,                                 // BOOLEAN
+        alerta: alertMessage || null,                    // TEXT
+        fecha_alerta: alertDate,                         // DATE
+        hora_alerta: alertTime                           // TIME
     };
+
+    console.log("📤 Enviando a Supabase:", incidentData);
 
     const result = await guardarIncidenciaSupabase(incidentData);
     if (result) {
@@ -995,7 +992,6 @@ async function addIncident() {
         showAlert("✅ Incidencia agregada correctamente", "success", 3000, true);
     }
 }
-
 function isExpired(incident) {
     if (!incident.expiry) return false;
     const today = new Date();
@@ -1053,66 +1049,112 @@ function renderIncidents() {
     }).join('');
 }
 
-function resolveIncident(incidentId) {
+async function resolveIncident(incidentId) {
+  if (!currentRoom) return;
+
+  // Marca como resuelta en Supabase (mantiene histórico)
+  const { error } = await supabaseClient
+    .from('incidencias')
+    .update({ resuelta: true })
+    .eq('id', incidentId);
+
+  if (error) {
+    console.error('❌ Error al resolver en Supabase:', error);
+    showAlert('Error al resolver incidencia en Supabase', 'error', 3000, true);
+    return;
+  }
+
+  // Refresca desde Supabase para que todas las sesiones vean el cambio
+  await cargarIncidenciasSupabase();
+  renderIncidents();
+  showAlert('Incidencia resuelta', 'success', 3000, true);
+}
+
+async function removeIncident(incidentId) {
+  if (!currentRoom) return;
+
+  // Opción A: borrar del todo
+  // const { error } = await supabaseClient.from('incidencias').delete().eq('id', incidentId);
+
+  // Opción B (recomendada): marcar como resuelta = “eliminada” de la vista actual
+  const { error } = await supabaseClient
+    .from('incidencias')
+    .update({ resuelta: true })
+    .eq('id', incidentId);
+
+  if (error) {
+    console.error('❌ Error al eliminar en Supabase:', error);
+    showAlert('Error al eliminar incidencia en Supabase', 'error', 3000, true);
+    return;
+  }
+
+  await cargarIncidenciasSupabase();
+  renderIncidents();
+  showAlert('Incidencia eliminada', 'info', 3000, true);
+}
+
+
+async function resolveAllIncidents() {
     if (!currentRoom) return;
-    const incidentIndex = rooms[currentRoom].incidents.findIndex(i => i.id === incidentId);
-    if (incidentIndex !== -1) {
-        const incident = rooms[currentRoom].incidents[incidentIndex];
-        const resolvedIncident = { ...incident, roomNumber: currentRoom, resolvedDate: new Date(), resolvedBy: 'Sistema' };
-        resolvedIncidents.push(resolvedIncident);
-        rooms[currentRoom].incidents.splice(incidentIndex, 1);
-        updateRoomStatus(currentRoom);
-        saveData();
-        renderIncidents();
-        renderRooms();
-        updateStats();
-        updateHistoryIndicator();
-        showAlert('Incidencia resuelta y movida al historial', 'success', 3000, true);
+
+    const roomIncidents = rooms[currentRoom]?.incidents || [];
+    if (roomIncidents.length === 0) {
+        showAlert("No hay incidencias que resolver en esta habitación", "info", 3000, true);
+        return;
+    }
+
+    try {
+        const ids = roomIncidents.map(inc => inc.id);
+
+        const { error } = await supabaseClient
+            .from("incidencias")
+            .update({ resuelta: true })
+            .in("id", ids);
+
+        if (error) {
+            console.error("❌ Error al resolver incidencias en Supabase:", error);
+            showAlert("Error al resolver incidencias en Supabase", "error", 3000, true);
+            return;
+        }
+
+        await cargarIncidenciasSupabase();
+        showAlert("✅ Todas las incidencias de la habitación han sido resueltas", "success", 3000, true);
+
+    } catch (err) {
+        console.error("Error en resolveAllIncidents:", err);
     }
 }
 
-function removeIncident(incidentId) {
+async function clearAllIncidents() {
     if (!currentRoom) return;
-    rooms[currentRoom].incidents = rooms[currentRoom].incidents.filter(i => i.id !== incidentId);
-    updateRoomStatus(currentRoom);
-    saveData();
-    renderIncidents();
-    renderRooms();
-    updateStats();
-    showAlert('Incidencia eliminada', 'info', 3000, true);
-}
 
-function resolveAllIncidents() {
-    if (!currentRoom) return;
-    if (confirm('¿Estás seguro de que quieres resolver todas las incidencias de esta habitación?')) {
-        rooms[currentRoom].incidents.forEach(incident => {
-            const resolvedIncident = { ...incident, roomNumber: currentRoom, resolvedDate: new Date(), resolvedBy: 'Sistema' };
-            resolvedIncidents.push(resolvedIncident);
-        });
-        rooms[currentRoom].incidents = [];
-        updateRoomStatus(currentRoom);
-        saveData();
-        renderIncidents();
-        renderRooms();
-        updateStats();
-        updateHistoryIndicator();
-        showAlert('Todas las incidencias han sido resueltas y movidas al historial', 'success', 3000, true);
+    const roomIncidents = rooms[currentRoom]?.incidents || [];
+    if (roomIncidents.length === 0) {
+        showAlert("No hay incidencias que eliminar en esta habitación", "info", 3000, true);
+        return;
+    }
+
+    try {
+        const ids = roomIncidents.map(inc => inc.id);
+
+        const { error } = await supabaseClient
+            .from("incidencias")
+            .delete()
+            .in("id", ids);
+
+        if (error) {
+            console.error("❌ Error al eliminar incidencias en Supabase:", error);
+            showAlert("Error al eliminar incidencias en Supabase", "error", 3000, true);
+            return;
+        }
+
+        await cargarIncidenciasSupabase();
+        showAlert("🗑️ Todas las incidencias de la habitación han sido eliminadas", "info", 3000, true);
+
+    } catch (err) {
+        console.error("Error en clearAllIncidents:", err);
     }
 }
-
-function clearAllIncidents() {
-    if (!currentRoom) return;
-    if (confirm('¿Estás seguro de que quieres eliminar todas las incidencias de esta habitación? (No se guardarán en el historial)')) {
-        rooms[currentRoom].incidents = [];
-        updateRoomStatus(currentRoom);
-        saveData();
-        renderIncidents();
-        renderRooms();
-        updateStats();
-        showAlert('Todas las incidencias han sido eliminadas', 'info', 3000, true);
-    }
-}
-
 // Historial de habitación
 function renderRoomHistory() {
     if (!currentRoom) return;
@@ -1306,37 +1348,9 @@ function clearAllData() {
                 rooms = {};
                 resolvedIncidents = [];
                 managementNotifications = [];
-                initializeRooms();
-
-                // Suscripción en tiempo real (si supabaseClient existe)
               
-                if (typeof supabaseClient !== 'undefined') {
-                    supabaseClient
-                        .channel("incidencias-changes")
-                        .on(
-                            "postgres_changes",
-                            { event: "*", schema: "public", table: "incidencias" },
-                            payload => {
-                                console.log("🔄 Cambio detectado en Supabase:", payload);
-                                cargarIncidenciasSupabase();
-                            }
-                        )
-                        .subscribe();
-                }
-const channel = supabaseClient
-  .channel("incidencias-changes")
-  .on(
-    "postgres_changes",
-    { event: "*", schema: "public", table: "incidencias" },
-    (payload) => {
-      console.log("🔄 Cambio detectado en Supabase:", payload);
-      cargarIncidenciasSupabase();
-    }
-  )
-  .subscribe();
 
-console.log("📡 Suscripción creada:", channel);
-                closeModal();
+                               closeModal();
                 closeHistoryModal();
                 showAlert('Todos los datos han sido eliminados', 'success', 3000, true);
             } else {
@@ -1385,8 +1399,7 @@ function setupEventListeners() {
         }
     });
 
-    // Auto-guardar cada 30 segundos
-    setInterval(saveData, 30000);
+   
     // Verificar alertas automáticas cada 5 minutos
     setInterval(checkAutoAlerts, 300000); // 5 minutos
 }
@@ -1463,8 +1476,13 @@ function filterHistory() {
 // Inicializar
 function initialize() {
     try {
-        initializeRooms();
+       
         setupEventListeners();
+      
+        setupSupabaseSubscription();
+		setupHuespedesSubscription();
+		
+		initializeRooms();
 
         // Verificar alertas automáticas al cargar
         setTimeout(() => { checkAutoAlerts(); }, 3000);
@@ -1482,6 +1500,8 @@ if (document.readyState === 'loading') {
 } else {
     initialize();
 }
+
+
 
 // --- Integración webapp simple (guardar / leer) ---
 async function guardar() {

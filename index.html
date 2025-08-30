@@ -44,6 +44,7 @@
       const supabaseUrl = 'https://elbzrevmughchxxytngd.supabase.co';
       const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVsYnpyZXZtdWdoY2h4eHl0bmdkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU0MzM5NTksImV4cCI6MjA3MTAwOTk1OX0.1JY9gKQ93V0uu8DNKx9rOlcNwwzyfq4GsNuvayipCeM';
       const supabaseClient = createClient(supabaseUrl, supabaseKey);
+      
       // Detectar cambios de sesión
       supabaseClient.auth.onAuthStateChange((event, session) => {
         console.log("Estado:", event, session);
@@ -51,6 +52,8 @@
           document.getElementById('contenido').style.display = 'block';
           document.getElementById('loginForm').style.display = 'none';
           document.body.classList.add('authenticated');
+          // Configurar suscripción una sola vez después del login
+setupSupabaseSubscription();
 
     
           
@@ -60,23 +63,7 @@
           document.body.classList.remove('authenticated');
         }
         
-        // Suscripción a Realtime (poner aquí)
-if (typeof supabaseClient !== 'undefined') {
-    const incidenciasChannel = supabaseClient
-        .channel('public:incidencias')
-        .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'incidencias' },
-            (payload) => {
-                console.log('🔄 Cambio detectado en Supabase:', payload);
-                cargarIncidenciasSupabase(); // refresca la lista
-            }
-        )
-        .subscribe();
-
-    console.log('📡 Suscripción a Realtime creada:', incidenciasChannel);
-}
-
+     
       });
       // Función de login
       async function login() {
