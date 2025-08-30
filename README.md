@@ -1,1 +1,1 @@
-Questa versione sincronizza lgi interventi ma non ancora gli ospiti
+Questa versione sincronizza gli interventi ma non ancora gli ospiti
