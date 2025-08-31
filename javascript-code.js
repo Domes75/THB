@@ -1836,7 +1836,7 @@ function checkAlerts() {
                 const alertDateTime = new Date(`${incident.alertDate}T${incident.alertTime}`);
                 const diffTime = alertDateTime.getTime() - now.getTime();
                 const diffMinutes = Math.ceil(diffTime / (1000 * 60));
-                if (diffMinutes <= 60 && diffMinutes >= -5) {
+                if (diffMinutes <= 15 && diffMinutes >= -180) { // ← MISMO RANGO
                     let alertType = 'info';
                     let priority = 2;
                     if (diffMinutes <= 0) {
@@ -1862,12 +1862,9 @@ function checkAlerts() {
         setTimeout(() => showAlert(alert.message, alert.type, 7000, true), index * 500);
     });
 
-    alertCount = alerts.length;
-    if (alertCount === 0) {
-        showAlert('No hay alertas pendientes', 'success', 3000, true);
-    } else {
-        showAlert(`Se encontraron ${alertCount} alertas`, 'info', 3000, true);
-    }
+    if (alerts.length === 0) {
+    showAlert('No hay alertas pendientes', 'success', 3000, true);
+}
 }
 
 // Exportar datos
@@ -2381,5 +2378,6 @@ document.addEventListener("DOMContentLoaded", () => {
     renderCalendar();
     const today = formatDateKeyLocal(new Date());
     selectDate(today, new Date());
+
 
 });
