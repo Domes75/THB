@@ -1,6 +1,8 @@
 // FINE HTML
 
 // Variables globales
+// Al inicio de tu archivo principal
+
 
 let rooms = {};
 let currentRoom = null;
@@ -302,6 +304,10 @@ function filterByAlerts(counterId) {
         document.getElementById(counterId).textContent = roomsWithAlerts.length;
     }
     showAlert('Mostrando habitaciones con alertas activas', 'info', 2000, true);
+    // ✅ AGREGAR: Mostrar mensajes de alertas
+    setTimeout(() => {
+        checkAlerts();
+    }, 500);
 }
 
 function filterByExpired(counterId) {
@@ -314,7 +320,12 @@ function filterByExpired(counterId) {
         document.getElementById(counterId).textContent = expiredRooms.length;
     }
     showAlert('Mostrando habitaciones con incidencias caducadas', 'info', 2000, true);
+    // ✅ AGREGAR: Mostrar mensajes de alertas
+    setTimeout(() => {
+        checkAlerts();
+    }, 500);
 }
+
 
 // Sistema de alertas mejorado - solo se muestran cuando se solicitan
 function showAlert(message, type = 'info', duration = 5000, force = false) {
@@ -981,6 +992,7 @@ function clearIncidentForm() {
     if (ma) ma.style.display = 'none';
 }
 
+
 async function saveGuestInfo() {
     if (!currentRoom) return;
 
@@ -1010,6 +1022,32 @@ async function saveGuestInfo() {
         closeModal();
     } else {
         showAlert('Error al guardar huésped', 'error', 3000, true);
+    }
+}
+
+async function clearGuestInfo() {
+    if (!currentRoom) return;
+    if (confirm('¿Estás seguro de que quieres limpiar toda la información del huésped?')) {
+        const { error } = await supabaseClient
+            .from("huespedes")
+            .update({ activo: false })
+            .eq('habitacion', currentRoom);
+            
+        if (error) {
+            console.error("Error al eliminar huésped en Supabase:", error);
+            showAlert("Error al eliminar huésped en Supabase", "error", 3000, true);
+            return;
+        }
+        
+        await cargarHuespedesSupabase();
+        
+        // Forzar actualización del estado de la habitación
+        rooms[currentRoom].occupancyStatus = 'libre';
+        updateRoomStatus(currentRoom);
+        renderRooms();
+        updateStats();
+        showAlert('Información del huésped eliminada', 'info', 3000, true);
+        closeModal();
     }
 }
 // ---- Supabase helpers (funciones top-level) ----
@@ -1512,6 +1550,18 @@ function renderIncidents() {
 async function resolveIncident(incidentId) {
     if (!currentRoom) return;
 
+
+	// ✅ AGREGAR: Encontrar la incidencia y moverla al historial
+  const room = rooms[currentRoom];
+  const incident = room.incidents.find(inc => inc.id === incidentId);
+  if (incident) {
+    resolvedIncidents.push({
+      ...incident,
+      roomNumber: currentRoom,
+      resolvedDate: new Date(),
+      resolvedBy: 'Usuario'
+    });
+  }
     // Marca como resuelta en Supabase (mantiene histórico)
     const {
         error
