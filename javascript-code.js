@@ -72,6 +72,32 @@ function setupEventosSubscription() {
         .subscribe((status) => console.log('Eventos Realtime:', status));
 }
 
+let __notasChannel;
+
+function setupNotasHabitacionSubscription() {
+    console.log('Intentando configurar suscripción de notas...', !!supabaseClient, !!__notasChannel);
+    if (!supabaseClient) return;
+    
+    if (__notasChannel) {
+        __notasChannel.unsubscribe();
+        __notasChannel = null;
+    }
+    
+    __notasChannel = supabaseClient
+        .channel('notas-habitacion-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'habitaciones_notas' }, (payload) => {
+            console.log('CALLBACK EJECUTADO - Cambio en notas:', payload);
+            cargarNotasHabitacionesSupabase().then(() => {
+                renderRooms();
+                // Si hay modal abierto, recargar las notas
+                if (currentRoom) {
+                    loadRoomNotes();
+                }
+            });
+        })
+        .subscribe((status) => console.log('Notas Realtime:', status));
+}
+
 async function cargarEventosSupabase() {
     try {
         const { data, error } = await supabaseClient
@@ -367,16 +393,31 @@ function generateGuestMessage(severity, description) {
 
 
 // Notas habitación
-function saveRoomNotes() {
+async function saveRoomNotes() {
     if (!currentRoom) return;
     const room = rooms[currentRoom];
     if (!room.roomInfo) room.roomInfo = {};
-    room.roomInfo.description = document.getElementById('roomDescription')?.value.trim() || '';
-    room.roomInfo.features = document.getElementById('roomFeatures')?.value.trim() || '';
-    room.roomInfo.notes = document.getElementById('roomNotes')?.value.trim() || '';
- 
-    renderRooms();
-    showAlert('Notas de habitación guardadas correctamente', 'success', 3000, true);
+    
+    const notasData = {
+        habitacion: currentRoom,
+        descripcion: document.getElementById('roomDescription')?.value.trim() || '',
+        caracteristicas: document.getElementById('roomFeatures')?.value.trim() || '',
+        notas: document.getElementById('roomNotes')?.value.trim() || ''
+    };
+    
+    // Guardar localmente
+    room.roomInfo.description = notasData.descripcion;
+    room.roomInfo.features = notasData.caracteristicas;
+    room.roomInfo.notes = notasData.notas;
+    
+    // Guardar en Supabase
+    const result = await guardarNotasHabitacionSupabase(notasData);
+    if (result) {
+        renderRooms();
+        showAlert('Notas de habitación guardadas correctamente', 'success', 3000, true);
+    } else {
+        showAlert('Error al guardar notas en Supabase', 'error', 3000, true);
+    }
 }
 
 function clearRoomNotes() {
@@ -420,13 +461,13 @@ function updateHistoryIndicator() {
    
     
     // Cargar datos más recientes desde Supabase después de inicializar localmente
-    if (typeof supabaseClient !== 'undefined') {
-        cargarIncidenciasSupabase().then(() => {
-            console.log('Datos sincronizados desde Supabase');
-            renderRooms();
-            updateStats();
-        });
-    }
+if (typeof supabaseClient !== 'undefined') {
+    Promise.all([cargarIncidenciasSupabase(), cargarHuespedesSupabase(), cargarNotasHabitacionesSupabase()]).then(() => {
+        console.log('Datos sincronizados desde Supabase');
+        renderRooms();
+        updateStats();
+    });
+}
 
 
 
@@ -1092,7 +1133,78 @@ async function cargarHuespedesSupabase() {
     }
 }
 
+async function guardarNotasHabitacionSupabase(notasData) {
+    try {
+        const { data: existing } = await supabaseClient
+            .from("habitaciones_notas")
+            .select('id')
+            .eq('habitacion', notasData.habitacion);
+            
+        let data, error;
+        
+        if (existing && existing.length > 0) {
+            const result = await supabaseClient
+                .from("habitaciones_notas")
+                .update(notasData)
+                .eq('habitacion', notasData.habitacion)
+                .select();
+            data = result.data;
+            error = result.error;
+        } else {
+            const result = await supabaseClient
+                .from("habitaciones_notas")
+                .insert([notasData])
+                .select();
+            data = result.data;
+            error = result.error;
+        }
+        
+        if (error) {
+            console.error("Error al guardar notas en Supabase:", error);
+            return null;
+        }
+        return data;
+    } catch (err) {
+        console.error('Error en guardarNotasHabitacionSupabase:', err);
+        return null;
+    }
+}
 
+async function cargarNotasHabitacionesSupabase() {
+    try {
+        const { data, error } = await supabaseClient
+            .from('habitaciones_notas')
+            .select('*');
+            
+        if (error) {
+            console.error('Error al cargar notas:', error);
+            return;
+        }
+        
+        data.forEach((nota) => {
+            const roomNum = nota.habitacion;
+            if (!rooms[roomNum]) {
+                rooms[roomNum] = {
+                    number: roomNum,
+                    incidents: [],
+                    status: 'libre',
+                    guest: { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' },
+                    roomInfo: { description: '', features: '', notes: '' },
+                    occupancyStatus: 'libre'
+                };
+            }
+            rooms[roomNum].roomInfo = {
+                description: nota.descripcion || '',
+                features: nota.caracteristicas || '',
+                notes: nota.notas || ''
+            };
+        });
+        
+        console.log('Notas cargadas desde Supabase:', data.length);
+    } catch (err) {
+        console.error('Error en cargarNotasHabitacionesSupabase:', err);
+    }
+}
 
 async function addIncident() {
     if (!currentRoom) return;
@@ -1629,6 +1741,7 @@ function initialize() {
         setupSupabaseSubscription();
 		setupHuespedesSubscription();
 		setupEventosSubscription();
+		setupNotasHabitacionSubscription();
 		
 		initializeRooms();
 
