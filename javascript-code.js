@@ -1738,10 +1738,15 @@ function initialize() {
        
         setupEventListeners();
       
-        setupSupabaseSubscription();
-		setupHuespedesSubscription();
-		setupEventosSubscription();
-		setupNotasHabitacionSubscription();
+        console.log('Iniciando suscripciones...');
+setupSupabaseSubscription();
+console.log('Suscripción incidencias OK');
+setupHuespedesSubscription();
+console.log('Suscripción huéspedes OK');
+setupEventosSubscription();
+console.log('Suscripción eventos OK');
+setupNotasHabitacionSubscription();
+console.log('Suscripción notas OK');
 		
 		initializeRooms();
 
