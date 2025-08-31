@@ -596,7 +596,7 @@ function renderRooms() {
             <div class="room-number" style="opacity:${opacity}">${room.number}</div>
             <div class="room-status" style="opacity:${opacity}">${getStatusText(room.status)}</div>
             ${hasNotes ? `<div class="notes-icon" style="opacity:${opacity}; position: absolute; bottom: 4px; left: 4px; background: #3b82f6; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px;">📝</div>` : ''}
-            ${hasGuest ? `<div class="guest-icon" style="position: absolute; top: 4px; left: 28px; background: #22c55e; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px;">👤</div>` : ''}
+            ${hasGuest ? `<div class="guest-icon" style="position: absolute; bottom: 4px; left: 4px; background: #22c55e; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; box-shadow: 0 0 2px rgba(0,0,0,0.3);">👤</div>` : ''}
             ${guestInfo}
             ${mainIcon ? `<div class="incident-type-icon" style="opacity:${opacity}">${mainIcon}</div>` : ''}
             ${mainTags.length > 0 ? `<div class="room-tags">${mainTags.map(tag => `<div class="room-tag" style="opacity:${opacity}">${tag}</div>`).join('')}</div>` : ''}
@@ -834,7 +834,7 @@ const result = await guardarHuespedSupabase(guestData);
 console.log('Resultado guardar huésped:', result);    if (result) {
         await cargarHuespedesSupabase();
         // Forzar actualización del estado de la habitación
-rooms[currentRoom].occupancyStatus = 'bloqueada';
+rooms[currentRoom].occupancyStatus = 'ocupada';
 updateRoomStatus(currentRoom);
         showAlert('Información del huésped guardada correctamente', 'success', 3000, true);
     }
@@ -1016,71 +1016,77 @@ async function guardarHuespedSupabase(guestData) {
 }
 async function cargarHuespedesSupabase() {
     try {
-        const { data, error } = await supabaseClient
-    .from('huespedes')
-    .select('*')
-    .eq('activo', true);
-        
-        if (error) {
-            console.error('Error al cargar huéspedes:', error);
-            return;
-        }
-        
+        const resp = await supabaseClient
+            .from('huespedes')
+            .select('*')
+            .eq('activo', true);
+
+        const data = Array.isArray(resp.data) ? resp.data : [];
+
         // Limpiar todos los huéspedes antes de cargar
         Object.keys(rooms).forEach(roomNum => {
             rooms[roomNum].guest = { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' };
         });
-        
+
+        // Asignar huéspedes a sus habitaciones
         data.forEach((huesped) => {
             const roomNum = huesped.habitacion;
-            if (rooms[roomNum]) {
-                rooms[roomNum].guest = {
-                    name: huesped.nombre || '',
-                    surname: huesped.apellidos || '',
-                    pax: huesped.pax || 0,
-                    phone: huesped.telefono || '',
-                    agency: huesped.agencia || '',
-                    checkIn: huesped.fecha_entrada || '',
-                    checkOut: huesped.fecha_salida || ''
+            if (!rooms[roomNum]) {
+                // asegurar que la habitación existe (por si hay habitaciones fuera de rango)
+                rooms[roomNum] = {
+                    number: roomNum,
+                    incidents: [],
+                    status: 'libre',
+                    guest: { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' },
+                    roomInfo: { description: '', features: '', notes: '' },
+                    occupancyStatus: 'libre'
                 };
-                updateRoomStatus(roomNum);
             }
+            rooms[roomNum].guest = {
+                name: huesped.nombre || '',
+                surname: huesped.apellidos || '',
+                pax: huesped.pax || 0,
+                phone: huesped.telefono || '',
+                agency: huesped.agencia || '',
+                checkIn: huesped.fecha_entrada || '',
+                checkOut: huesped.fecha_salida || ''
+            };
+            updateRoomStatus(roomNum);
         });
 
-        // MOVER ESTE BLOQUE AQUÍ - fuera del forEach
+        // Si hay modal abierto, rellenar campos
         if (currentRoom) {
             const room = rooms[currentRoom];
-            const roomInfo = room.guest || {};
-            ['guestName', 'guestSurname', 'guestPax', 'guestPhone', 'guestAgency', 'checkInDate', 'checkOutDate'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    switch(id) {
-                        case 'guestName': el.value = roomInfo.name || ''; break;
-                        case 'guestSurname': el.value = roomInfo.surname || ''; break;
-                        case 'guestPax': el.value = roomInfo.pax || ''; break;
-                        case 'guestPhone': el.value = roomInfo.phone || ''; break;
-                        case 'guestAgency': el.value = roomInfo.agency || ''; break;
-                        case 'checkInDate': el.value = roomInfo.checkIn || ''; break;
-                        case 'checkOutDate': el.value = roomInfo.checkOut || ''; break;
-                    }
-                }
-            });
+            if (room) {
+                const roomInfo = room.guest || {};
+                ['guestName', 'guestSurname', 'guestPax', 'guestPhone', 'guestAgency', 'checkInDate', 'checkOutDate']
+                    .forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) {
+                            switch (id) {
+                                case 'guestName': el.value = roomInfo.name || ''; break;
+                                case 'guestSurname': el.value = roomInfo.surname || ''; break;
+                                case 'guestPax': el.value = roomInfo.pax || ''; break;
+                                case 'guestPhone': el.value = roomInfo.phone || ''; break;
+                                case 'guestAgency': el.value = roomInfo.agency || ''; break;
+                                case 'checkInDate': el.value = roomInfo.checkIn || ''; break;
+                                case 'checkOutDate': el.value = roomInfo.checkOut || ''; break;
+                            }
+                        }
+                    });
+            }
         }
-        
-        // Actualizar estados de ocupación basados en los datos cargados
-Object.keys(rooms).forEach(roomNum => {
-    const hasGuest = data.find(h => h.habitacion == roomNum);
-    if (hasGuest) {
-        rooms[roomNum].occupancyStatus = 'bloqueada';
-    } else {
-        rooms[roomNum].occupancyStatus = 'libre';
-    }
-    updateRoomStatus(roomNum);
-});
 
-renderRooms();
-updateStats();
-        
+        // Actualizar estados de ocupación basados en los datos cargados
+        Object.keys(rooms).forEach(roomNum => {
+            const hasGuest = data.find(h => h.habitacion == roomNum);
+            rooms[roomNum].occupancyStatus = hasGuest ? 'ocupada' : 'libre'; // ✅ aquí va "ocupada"
+            updateRoomStatus(roomNum);
+        });
+
+        renderRooms();
+        updateStats();
+
     } catch (err) {
         console.error('Error en cargarHuespedesSupabase:', err);
     }
