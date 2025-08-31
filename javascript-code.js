@@ -420,9 +420,22 @@ async function saveRoomNotes() {
     }
 }
 
-function clearRoomNotes() {
+async function clearRoomNotes() {
     if (!currentRoom) return;
     if (confirm('¿Estás seguro de que quieres limpiar todas las notas de la habitación?')) {
+        // Borrar en Supabase
+        const { error } = await supabaseClient
+            .from("habitaciones_notas")
+            .delete()
+            .eq('habitacion', currentRoom);
+            
+        if (error) {
+            console.error("Error al eliminar notas en Supabase:", error);
+            showAlert("Error al eliminar notas en Supabase", "error", 3000, true);
+            return;
+        }
+        
+        // Limpiar localmente
         rooms[currentRoom].roomInfo = { description: '', features: '', notes: '' };
         document.getElementById('roomDescription').value = '';
         document.getElementById('roomFeatures').value = '';
@@ -1181,6 +1194,14 @@ async function cargarNotasHabitacionesSupabase() {
             return;
         }
         
+        // ✅ LIMPIAR TODAS las notas primero
+        Object.keys(rooms).forEach(roomNum => {
+            if (rooms[roomNum].roomInfo) {
+                rooms[roomNum].roomInfo = { description: '', features: '', notes: '' };
+            }
+        });
+        
+        // Luego cargar solo las que existen en Supabase
         data.forEach((nota) => {
             const roomNum = nota.habitacion;
             if (!rooms[roomNum]) {
@@ -1205,7 +1226,6 @@ async function cargarNotasHabitacionesSupabase() {
         console.error('Error en cargarNotasHabitacionesSupabase:', err);
     }
 }
-
 async function addIncident() {
     if (!currentRoom) return;
 
@@ -1738,15 +1758,10 @@ function initialize() {
        
         setupEventListeners();
       
-        console.log('Iniciando suscripciones...');
-setupSupabaseSubscription();
-console.log('Suscripción incidencias OK');
-setupHuespedesSubscription();
-console.log('Suscripción huéspedes OK');
-setupEventosSubscription();
-console.log('Suscripción eventos OK');
-setupNotasHabitacionSubscription();
-console.log('Suscripción notas OK');
+        setupSupabaseSubscription();
+		setupHuespedesSubscription();
+		setupEventosSubscription();
+		setupNotasHabitacionSubscription();
 		
 		initializeRooms();
 
