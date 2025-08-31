@@ -675,31 +675,32 @@ function renderRooms() {
 
         const roomCard = document.createElement('div');
         // Verificar si tiene alerta activa AHORA
+// Verificar si tiene alerta activa AHORA
 const hasActiveAlert = room.incidents.some(incident => {
     if (!incident.alertDate || !incident.alertTime) return false;
     const alertDateTime = new Date(`${incident.alertDate}T${incident.alertTime}`);
     const now = new Date();
     const diffMinutes = Math.ceil((alertDateTime.getTime() - now.getTime()) / (1000 * 60));
-    return diffMinutes <= 0 && diffMinutes >= -30; // Activa por 30 min después de la hora
+    
+    // ✅ AGREGAR ESTOS CONSOLE.LOG:
+    console.log(`Habitación ${room.number}:`, {
+        alertDate: incident.alertDate,
+        alertTime: incident.alertTime,
+        alertDateTime: alertDateTime,
+        now: now,
+        diffMinutes: diffMinutes,
+        shouldBeActive: diffMinutes <= 0 && diffMinutes >= -30
+    });
+    
+    return diffMinutes <= 0 && diffMinutes >= -30;
 });
+
+console.log(`Habitación ${room.number} hasActiveAlert:`, hasActiveAlert); // ✅ Y ESTE
 
 roomCard.className = `room-card ${room.status}`;
 if (hasActiveAlert) {
-    // Parpadeo con JavaScript
-    let isRed = true;
-    const blinkInterval = setInterval(() => {
-        if (isRed) {
-            roomCard.style.border = '3px solid #ef4444';
-            roomCard.style.backgroundColor = '#fef2f2';
-        } else {
-            roomCard.style.border = '3px solid #dc2626';
-            roomCard.style.backgroundColor = '#fee2e2';
-        }
-        isRed = !isRed;
-    }, 600);
-    
-    // Limpiar el interval después de 2 minutos
-    setTimeout(() => clearInterval(blinkInterval), 120000);
+    console.log(`Aplicando alerta a habitación ${room.number}`); // ✅ Y ESTE
+    roomCard.setAttribute('data-alert', 'true');
 }
 
         roomCard.setAttribute('data-room', roomNumber);
