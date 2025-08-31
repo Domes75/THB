@@ -417,7 +417,9 @@ async function saveRoomNotes() {
         showAlert('Notas de habitación guardadas correctamente', 'success', 3000, true);
     } else {
         showAlert('Error al guardar notas en Supabase', 'error', 3000, true);
+        closeModal();
     }
+    
 }
 
 async function clearRoomNotes() {
@@ -443,7 +445,9 @@ async function clearRoomNotes() {
     
         renderRooms();
         showAlert('Notas eliminadas', 'info', 3000, true);
+        closeModal();
     }
+    
 }
 
 function updatePopularTags() {
@@ -884,48 +888,22 @@ async function saveGuestInfo() {
     };
 
     console.log('Guardando huésped:', guestData);
-const result = await guardarHuespedSupabase(guestData);
-console.log('Resultado guardar huésped:', result);    if (result) {
-        await cargarHuespedesSupabase();
-        // Forzar actualización del estado de la habitación
-rooms[currentRoom].occupancyStatus = 'ocupada';
-updateRoomStatus(currentRoom);
-        showAlert('Información del huésped guardada correctamente', 'success', 3000, true);
-    }
+    const result = await guardarHuespedSupabase(guestData);
+    console.log('Resultado guardar huésped:', result);
     
     if (result) {
-    await cargarHuespedesSupabase();
-    renderRooms(); // <-- AGREGAR ESTA LÍNEA
-    updateStats(); // <-- Y ESTA TAMBIÉN
-    showAlert('Información del huésped guardada correctamente', 'success', 3000, true);
-}
-}
-
-async function clearGuestInfo() {
-    if (!currentRoom) return;
-    if (confirm('¿Estás seguro de que quieres limpiar toda la información del huésped?')) {
-        const { error } = await supabaseClient
-            .from("huespedes")
-            .update({ activo: false })
-            .eq('habitacion', currentRoom);
-            
-        if (error) {
-            console.error("Error al eliminar huésped en Supabase:", error);
-            showAlert("Error al eliminar huésped en Supabase", "error", 3000, true);
-            return;
-        }
-        
         await cargarHuespedesSupabase();
-        
         // Forzar actualización del estado de la habitación
-        rooms[currentRoom].occupancyStatus = 'libre';
+        rooms[currentRoom].occupancyStatus = 'ocupada';
         updateRoomStatus(currentRoom);
         renderRooms();
         updateStats();
-        showAlert('Información del huésped eliminada', 'info', 3000, true);
+        showAlert('Información del huésped guardada correctamente', 'success', 3000, true);
+        closeModal();
+    } else {
+        showAlert('Error al guardar huésped', 'error', 3000, true);
     }
 }
-
 // ---- Supabase helpers (funciones top-level) ----
 
 // Nota: supabaseClient debe estar definido en otro archivo globalmente.
@@ -1269,7 +1247,9 @@ async function addIncident() {
         clearIncidentForm();
         renderIncidents();
         showAlert("✅ Incidencia agregada correctamente", "success", 3000, true);
+        closeModal();
     }
+    
 }
 function isExpired(incident) {
     if (!incident.expiry) return false;
@@ -1398,7 +1378,7 @@ async function resolveAllIncidents() {
 
         await cargarIncidenciasSupabase();
         showAlert("✅ Todas las incidencias de la habitación han sido resueltas", "success", 3000, true);
-
+		closeModal();
     } catch (err) {
         console.error("Error en resolveAllIncidents:", err);
     }
@@ -1429,7 +1409,7 @@ async function clearAllIncidents() {
 
         await cargarIncidenciasSupabase();
         showAlert("🗑️ Todas las incidencias de la habitación han sido eliminadas", "info", 3000, true);
-
+		closeModal();
     } catch (err) {
         console.error("Error en clearAllIncidents:", err);
     }
