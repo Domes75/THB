@@ -13,15 +13,19 @@ let managementNotifications = [];
 let __incidentsChannel;
 
 function setupSupabaseSubscription() {
-  if (!supabaseClient || __incidentsChannel) return;
+    if (!supabaseClient || __incidentsChannel) return;
 
-  __incidentsChannel = supabaseClient
-    .channel('incidencias-realtime')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'incidencias' }, (payload) => {
-      // Cada cambio en la tabla refresca la vista
-      cargarIncidenciasSupabase();
-    })
-    .subscribe((status) => console.log('Realtime:', status));
+    __incidentsChannel = supabaseClient
+        .channel('incidencias-realtime')
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'incidencias'
+        }, (payload) => {
+            // Cada cambio en la tabla refresca la vista
+            cargarIncidenciasSupabase();
+        })
+        .subscribe((status) => console.log('Realtime:', status));
 }
 
 let __guestsChannel;
@@ -29,23 +33,28 @@ let __guestsChannel;
 function setupHuespedesSubscription() {
     console.log('Intentando configurar suscripción de huéspedes...', !!supabaseClient, !!__guestsChannel);
     if (!supabaseClient) return; // Quitar la verificación de __guestsChannel
-    
+
     if (__guestsChannel) {
         __guestsChannel.unsubscribe(); // Desuscribir el anterior
         __guestsChannel = null;
-    }    
+    }
     __guestsChannel = supabaseClient
-    .channel('huespedes-realtime-test') // Cambiar nombre del canal
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'huespedes' }, (payload) => {
-      console.log('CALLBACK EJECUTADO - Cambio en huéspedes:', payload);
-      cargarHuespedesSupabase().then(() => {
-          // Forzar actualización de estados después de cargar huéspedes
-          Object.keys(rooms).forEach(roomNum => {
-              updateRoomStatus(roomNum);
-          });
-      });
-  })
-  .subscribe((status) => console.log('Huéspedes Realtime:', status));}
+        .channel('huespedes-realtime-test') // Cambiar nombre del canal
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'huespedes'
+        }, (payload) => {
+            console.log('CALLBACK EJECUTADO - Cambio en huéspedes:', payload);
+            cargarHuespedesSupabase().then(() => {
+                // Forzar actualización de estados después de cargar huéspedes
+                Object.keys(rooms).forEach(roomNum => {
+                    updateRoomStatus(roomNum);
+                });
+            });
+        })
+        .subscribe((status) => console.log('Huéspedes Realtime:', status));
+}
 
 
 let __eventosChannel;
@@ -53,15 +62,19 @@ let __eventosChannel;
 function setupEventosSubscription() {
     console.log('Intentando configurar suscripción de eventos...', !!supabaseClient, !!__eventosChannel);
     if (!supabaseClient) return;
-    
+
     if (__eventosChannel) {
         __eventosChannel.unsubscribe();
         __eventosChannel = null;
     }
-    
+
     __eventosChannel = supabaseClient
         .channel('eventos-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'calendario_eventos' }, (payload) => {
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'calendario_eventos'
+        }, (payload) => {
             console.log('CALLBACK EJECUTADO - Cambio en eventos:', payload);
             cargarEventosSupabase().then(() => {
                 renderCalendar();
@@ -77,15 +90,19 @@ let __notasChannel;
 function setupNotasHabitacionSubscription() {
     console.log('Intentando configurar suscripción de notas...', !!supabaseClient, !!__notasChannel);
     if (!supabaseClient) return;
-    
+
     if (__notasChannel) {
         __notasChannel.unsubscribe();
         __notasChannel = null;
     }
-    
+
     __notasChannel = supabaseClient
         .channel('notas-habitacion-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'habitaciones_notas' }, (payload) => {
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'habitaciones_notas'
+        }, (payload) => {
             console.log('CALLBACK EJECUTADO - Cambio en notas:', payload);
             cargarNotasHabitacionesSupabase().then(() => {
                 renderRooms();
@@ -100,18 +117,21 @@ function setupNotasHabitacionSubscription() {
 
 async function cargarEventosSupabase() {
     try {
-        const { data, error } = await supabaseClient
+        const {
+            data,
+            error
+        } = await supabaseClient
             .from('calendario_eventos')
             .select('*');
-        
+
         if (error) {
             console.error('Error al cargar eventos:', error);
             return;
         }
-        
+
         // Limpiar eventos locales
         calendarEvents = {};
-        
+
         // Convertir datos de Supabase al formato local
         data.forEach((evento) => {
             const fechaKey = evento.fecha;
@@ -127,9 +147,9 @@ async function cargarEventosSupabase() {
                 created: evento.created_at
             });
         });
-        
+
         console.log('Eventos cargados desde Supabase:', data.length);
-        
+
     } catch (err) {
         console.error('Error en cargarEventosSupabase:', err);
     }
@@ -137,11 +157,14 @@ async function cargarEventosSupabase() {
 
 async function guardarEventoSupabase(eventoData) {
     try {
-        const { data, error } = await supabaseClient
+        const {
+            data,
+            error
+        } = await supabaseClient
             .from("calendario_eventos")
             .insert([eventoData])
             .select();
-            
+
         if (error) {
             console.error("Error al guardar evento en Supabase:", error);
             return null;
@@ -156,11 +179,13 @@ async function guardarEventoSupabase(eventoData) {
 
 async function eliminarEventoSupabase(eventoId) {
     try {
-        const { error } = await supabaseClient
+        const {
+            error
+        } = await supabaseClient
             .from("calendario_eventos")
             .delete()
             .eq('id', eventoId);
-            
+
         if (error) {
             console.error("Error al eliminar evento en Supabase:", error);
             return false;
@@ -397,19 +422,19 @@ async function saveRoomNotes() {
     if (!currentRoom) return;
     const room = rooms[currentRoom];
     if (!room.roomInfo) room.roomInfo = {};
-    
+
     const notasData = {
         habitacion: currentRoom,
         descripcion: document.getElementById('roomDescription')?.value.trim() || '',
         caracteristicas: document.getElementById('roomFeatures')?.value.trim() || '',
         notas: document.getElementById('roomNotes')?.value.trim() || ''
     };
-    
+
     // Guardar localmente
     room.roomInfo.description = notasData.descripcion;
     room.roomInfo.features = notasData.caracteristicas;
     room.roomInfo.notes = notasData.notas;
-    
+
     // Guardar en Supabase
     const result = await guardarNotasHabitacionSupabase(notasData);
     if (result) {
@@ -420,35 +445,41 @@ async function saveRoomNotes() {
         showAlert('Error al guardar notas en Supabase', 'error', 3000, true);
         closeModal();
     }
-    
+
 }
 
 async function clearRoomNotes() {
     if (!currentRoom) return;
     if (confirm('¿Estás seguro de que quieres limpiar todas las notas de la habitación?')) {
         // Borrar en Supabase
-        const { error } = await supabaseClient
+        const {
+            error
+        } = await supabaseClient
             .from("habitaciones_notas")
             .delete()
             .eq('habitacion', currentRoom);
-            
+
         if (error) {
             console.error("Error al eliminar notas en Supabase:", error);
             showAlert("Error al eliminar notas en Supabase", "error", 3000, true);
             return;
         }
-        
+
         // Limpiar localmente
-        rooms[currentRoom].roomInfo = { description: '', features: '', notes: '' };
+        rooms[currentRoom].roomInfo = {
+            description: '',
+            features: '',
+            notes: ''
+        };
         document.getElementById('roomDescription').value = '';
         document.getElementById('roomFeatures').value = '';
         document.getElementById('roomNotes').value = '';
-    
+
         renderRooms();
         showAlert('Notas eliminadas', 'info', 3000, true);
         closeModal();
     }
-    
+
 }
 
 function updatePopularTags() {
@@ -476,9 +507,9 @@ function updateHistoryIndicator() {
     indicator.style.display = resolvedIncidents.length > 0 ? 'block' : 'none';
 }
 
-   
-    
-    // Cargar datos más recientes desde Supabase después de inicializar localmente
+
+
+// Cargar datos más recientes desde Supabase después de inicializar localmente
 if (typeof supabaseClient !== 'undefined') {
     Promise.all([cargarIncidenciasSupabase(), cargarHuespedesSupabase(), cargarNotasHabitacionesSupabase()]).then(() => {
         console.log('Datos sincronizados desde Supabase');
@@ -486,8 +517,6 @@ if (typeof supabaseClient !== 'undefined') {
         updateStats();
     });
 }
-
-
 
 
 
@@ -527,28 +556,36 @@ function getRoomMainIcon(room) {
 }
 
 function sortRoomsByPriority() {
-  const roomNumbers = Object.keys(rooms).map(Number);
-  const statusPriority = { critica: 5, grave: 4, moderada: 3, leve: 2, bloqueada: 1, libre: 0 };
+    const roomNumbers = Object.keys(rooms).map(Number);
+    const statusPriority = {
+        critica: 5,
+        grave: 4,
+        moderada: 3,
+        leve: 2,
+        bloqueada: 1,
+        libre: 0
+    };
 
-  return roomNumbers.sort((a, b) => {
-    const A = rooms[a], B = rooms[b];
-    const pa = statusPriority[A.status] ?? 0;
-    const pb = statusPriority[B.status] ?? 0;
-    if (pa !== pb) return pb - pa;
+    return roomNumbers.sort((a, b) => {
+        const A = rooms[a],
+            B = rooms[b];
+        const pa = statusPriority[A.status] ?? 0;
+        const pb = statusPriority[B.status] ?? 0;
+        if (pa !== pb) return pb - pa;
 
-    const hasA = A.incidents && A.incidents.length > 0;
-    const hasB = B.incidents && B.incidents.length > 0;
-    if (hasA && hasB) {
-      const oldestA = Math.min(...A.incidents.map(i => new Date(i.date).getTime()));
-      const oldestB = Math.min(...B.incidents.map(i => new Date(i.date).getTime()));
-      return oldestA - oldestB;
-    }
-    if (hasA) return -1;
-    if (hasB) return 1;
+        const hasA = A.incidents && A.incidents.length > 0;
+        const hasB = B.incidents && B.incidents.length > 0;
+        if (hasA && hasB) {
+            const oldestA = Math.min(...A.incidents.map(i => new Date(i.date).getTime()));
+            const oldestB = Math.min(...B.incidents.map(i => new Date(i.date).getTime()));
+            return oldestA - oldestB;
+        }
+        if (hasA) return -1;
+        if (hasB) return 1;
 
-    // sin incidencias: orden numérico ascendente
-    return a - b;
-  });
+        // sin incidencias: orden numérico ascendente
+        return a - b;
+    });
 }
 
 // Renderizar habitaciones
@@ -560,11 +597,24 @@ function renderFilteredRooms(filteredRooms) {
         const roomCard = document.createElement('div');
         roomCard.className = `room-card ${room.status}`;
         roomCard.setAttribute('data-room', room.number);
-        roomCard.onclick = (e) => { e.preventDefault(); openModal(room.number); };
-        roomCard.oncontextmenu = (e) => { e.preventDefault(); showContextMenu(e, room.number); };
+        roomCard.onclick = (e) => {
+            e.preventDefault();
+            openModal(room.number);
+        };
+        roomCard.oncontextmenu = (e) => {
+            e.preventDefault();
+            showContextMenu(e, room.number);
+        };
 
-        const incidentCounts = { critica: 0, grave: 0, moderada: 0, leve: 0 };
-        room.incidents.forEach(incident => { incidentCounts[incident.severity]++; });
+        const incidentCounts = {
+            critica: 0,
+            grave: 0,
+            moderada: 0,
+            leve: 0
+        };
+        room.incidents.forEach(incident => {
+            incidentCounts[incident.severity]++;
+        });
 
         let incidentBadges = '';
         Object.entries(incidentCounts).forEach(([severity, count]) => {
@@ -621,16 +671,56 @@ function renderRooms() {
         if (filterStatus && room.status !== filterStatus) matches = false;
         if (filterType && !room.incidents.some(incident => incident.type === filterType)) matches = false;
         if (filterTag && !room.incidents.some(incident =>
-            incident.tag && incident.tag.toLowerCase().includes(filterTag))) matches = false;
+                incident.tag && incident.tag.toLowerCase().includes(filterTag))) matches = false;
 
         const roomCard = document.createElement('div');
-        roomCard.className = `room-card ${room.status}`;
-        roomCard.setAttribute('data-room', roomNumber);
-        roomCard.onclick = (e) => { e.preventDefault(); openModal(roomNumber); };
-        roomCard.oncontextmenu = (e) => { e.preventDefault(); showContextMenu(e, roomNumber); };
+        // Verificar si tiene alerta activa AHORA
+const hasActiveAlert = room.incidents.some(incident => {
+    if (!incident.alertDate || !incident.alertTime) return false;
+    const alertDateTime = new Date(`${incident.alertDate}T${incident.alertTime}`);
+    const now = new Date();
+    const diffMinutes = Math.ceil((alertDateTime.getTime() - now.getTime()) / (1000 * 60));
+    return diffMinutes <= 0 && diffMinutes >= -30; // Activa por 30 min después de la hora
+});
 
-        const incidentCounts = { critica: 0, grave: 0, moderada: 0, leve: 0 };
-        room.incidents.forEach(incident => { incidentCounts[incident.severity]++; });
+roomCard.className = `room-card ${room.status}`;
+if (hasActiveAlert) {
+    // Parpadeo con JavaScript
+    let isRed = true;
+    const blinkInterval = setInterval(() => {
+        if (isRed) {
+            roomCard.style.border = '3px solid #ef4444';
+            roomCard.style.backgroundColor = '#fef2f2';
+        } else {
+            roomCard.style.border = '3px solid #dc2626';
+            roomCard.style.backgroundColor = '#fee2e2';
+        }
+        isRed = !isRed;
+    }, 600);
+    
+    // Limpiar el interval después de 2 minutos
+    setTimeout(() => clearInterval(blinkInterval), 120000);
+}
+
+        roomCard.setAttribute('data-room', roomNumber);
+        roomCard.onclick = (e) => {
+            e.preventDefault();
+            openModal(roomNumber);
+        };
+        roomCard.oncontextmenu = (e) => {
+            e.preventDefault();
+            showContextMenu(e, roomNumber);
+        };
+
+        const incidentCounts = {
+            critica: 0,
+            grave: 0,
+            moderada: 0,
+            leve: 0
+        };
+        room.incidents.forEach(incident => {
+            incidentCounts[incident.severity]++;
+        });
         let incidentBadges = '';
         Object.entries(incidentCounts).forEach(([severity, count]) => {
             if (count > 0) {
@@ -665,6 +755,7 @@ function renderRooms() {
         grid.appendChild(roomCard);
     });
 }
+
 function getOccupancyText(occupancyStatus) {
     const occupancyMap = {
         'libre': 'Libre',
@@ -707,7 +798,7 @@ function markAsOccupied() {
         if (rooms[contextMenuRoom].incidents.length === 0) {
             rooms[contextMenuRoom].status = 'ocupada';
         }
-       
+
         renderRooms();
         updateStats();
         openModal(contextMenuRoom, 'guest');
@@ -721,7 +812,7 @@ function markAsBlocked() {
         if (rooms[contextMenuRoom].incidents.length === 0) {
             rooms[contextMenuRoom].status = 'bloqueada';
         }
-  
+
         renderRooms();
         updateStats();
     }
@@ -731,11 +822,19 @@ function markAsBlocked() {
 function markAsFree() {
     if (contextMenuRoom && rooms[contextMenuRoom]) {
         rooms[contextMenuRoom].occupancyStatus = 'libre';
-        rooms[contextMenuRoom].guest = { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' };
+        rooms[contextMenuRoom].guest = {
+            name: '',
+            surname: '',
+            pax: 0,
+            phone: '',
+            agency: '',
+            checkIn: '',
+            checkOut: ''
+        };
         if (rooms[contextMenuRoom].incidents.length === 0) {
             rooms[contextMenuRoom].status = 'libre';
         }
-       
+
         renderRooms();
         updateStats();
     }
@@ -796,7 +895,10 @@ function updateStats() {
         }
     });
 
-    const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+    const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    };
     setText("libres", libres);
     setText("bloqueadas", bloqueadas);
     setText("criticas", criticas);
@@ -870,13 +972,17 @@ function closeModal() {
 
 function clearIncidentForm() {
     const ids = ['incidentDescription', 'incidentTag', 'reportedBy', 'expiryDate', 'alertDate', 'alertTime', 'alertMessage', 'incidentSeverity', 'incidentType', 'incidentPriority'];
-    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    const ma = document.getElementById('managementAlert'); if (ma) ma.style.display = 'none';
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const ma = document.getElementById('managementAlert');
+    if (ma) ma.style.display = 'none';
 }
 
 async function saveGuestInfo() {
     if (!currentRoom) return;
-    
+
     const guestData = {
         habitacion: currentRoom,
         nombre: document.getElementById('guestName').value.trim(),
@@ -891,7 +997,7 @@ async function saveGuestInfo() {
     console.log('Guardando huésped:', guestData);
     const result = await guardarHuespedSupabase(guestData);
     console.log('Resultado guardar huésped:', result);
-    
+
     if (result) {
         await cargarHuespedesSupabase();
         // Forzar actualización del estado de la habitación
@@ -910,7 +1016,10 @@ async function saveGuestInfo() {
 // Nota: supabaseClient debe estar definido en otro archivo globalmente.
 async function guardarIncidenciaSupabase(incidentData) {
     try {
-        const { data, error } = await supabaseClient
+        const {
+            data,
+            error
+        } = await supabaseClient
             .from("incidencias")
             .insert([incidentData])
             .select();
@@ -935,8 +1044,20 @@ function initializeRooms() {
                 number: i,
                 incidents: [],
                 status: 'libre',
-                guest: { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' },
-                roomInfo: { description: '', features: '', notes: '' },
+                guest: {
+                    name: '',
+                    surname: '',
+                    pax: 0,
+                    phone: '',
+                    agency: '',
+                    checkIn: '',
+                    checkOut: ''
+                },
+                roomInfo: {
+                    description: '',
+                    features: '',
+                    notes: ''
+                },
                 occupancyStatus: 'libre'
             };
         }
@@ -944,78 +1065,95 @@ function initializeRooms() {
 }
 
 async function cargarIncidenciasSupabase() {
-  try {
-    const { data, error } = await supabaseClient
-      .from('incidencias')
-      .select('*')
-      .eq('resuelta', false);
+    try {
+        const {
+            data,
+            error
+        } = await supabaseClient
+            .from('incidencias')
+            .select('*')
+            .eq('resuelta', false);
 
-    if (error) {
-      console.error('❌ Error al cargar incidencias:', error);
-      return [];
+        if (error) {
+            console.error('❌ Error al cargar incidencias:', error);
+            return [];
+        }
+
+        // Limpia solo las incidencias, no las habitaciones
+        Object.keys(rooms).forEach((roomNum) => {
+            rooms[roomNum].incidents = [];
+        });
+
+        // Inserta incidencias en sus habitaciones (si llega una fuera de rango, la “esqueletiza”)
+        data.forEach((inc) => {
+
+            // AGREGAR ESTAS LÍNEAS:
+            Object.keys(rooms).forEach(roomNum => {
+                updateRoomStatus(roomNum);
+            });
+            const n = inc.habitacion;
+            if (!rooms[n]) {
+                rooms[n] = {
+                    number: n,
+                    incidents: [],
+                    status: 'libre',
+                    guest: {
+                        name: '',
+                        surname: '',
+                        pax: 0,
+                        phone: '',
+                        agency: '',
+                        checkIn: '',
+                        checkOut: ''
+                    },
+                    roomInfo: {
+                        description: '',
+                        features: '',
+                        notes: ''
+                    },
+                    occupancyStatus: 'libre'
+                };
+            }
+            rooms[n].incidents.push({
+                id: inc.id,
+                severity: inc.gravedad,
+                type: inc.tipo,
+                priority: inc.prioridad,
+                description: inc.descripcion,
+                tag: inc.etiqueta,
+                reportedBy: inc.reportado_por,
+                date: new Date(inc.fecha_creacion),
+                expiry: inc.fecha_limite,
+                resolved: inc.resuelta,
+                alert: inc.alerta || null,
+                alertDate: inc.fecha_alerta || null,
+                alertTime: inc.hora_alerta || null
+            });
+            updateRoomStatus(n);
+        });
+
+        renderRooms();
+        updateStats();
+        return data;
+    } catch (err) {
+        console.error('Error en cargarIncidenciasSupabase:', err);
+        return [];
     }
-
-    // Limpia solo las incidencias, no las habitaciones
-    Object.keys(rooms).forEach((roomNum) => {
-      rooms[roomNum].incidents = [];
-    });
-
-    // Inserta incidencias en sus habitaciones (si llega una fuera de rango, la “esqueletiza”)
-    data.forEach((inc) => {
-    
-    // AGREGAR ESTAS LÍNEAS:
-Object.keys(rooms).forEach(roomNum => {
-  updateRoomStatus(roomNum);
-});
-      const n = inc.habitacion;
-      if (!rooms[n]) {
-        rooms[n] = {
-          number: n,
-          incidents: [],
-          status: 'libre',
-          guest: { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' },
-          roomInfo: { description: '', features: '', notes: '' },
-          occupancyStatus: 'libre'
-        };
-      }
-      rooms[n].incidents.push({
-        id: inc.id,
-        severity: inc.gravedad,
-        type: inc.tipo,
-        priority: inc.prioridad,
-        description: inc.descripcion,
-        tag: inc.etiqueta,
-        reportedBy: inc.reportado_por,
-        date: new Date(inc.fecha_creacion),
-        expiry: inc.fecha_limite,
-        resolved: inc.resuelta,
-        alert: inc.alerta || null,
-        alertDate: inc.fecha_alerta || null,
-        alertTime: inc.hora_alerta || null
-      });
-      updateRoomStatus(n);
-    });
-
-    renderRooms();
-    updateStats();
-    return data;
-  } catch (err) {
-    console.error('Error en cargarIncidenciasSupabase:', err);
-    return [];
-  }
 }
 
 async function guardarHuespedSupabase(guestData) {
     try {
         // Primero verificar si ya existe
-        const { data: existing } = await supabaseClient
+        const {
+            data: existing
+        } = await supabaseClient
             .from("huespedes")
             .select('id')
             .eq('habitacion', guestData.habitacion)
             .eq('activo', true);
-            
+
         let data, error;
-        
+
         if (existing && existing.length > 0) {
             // Actualizar existente
             const result = await supabaseClient
@@ -1035,7 +1173,7 @@ async function guardarHuespedSupabase(guestData) {
             data = result.data;
             error = result.error;
         }
-        
+
         if (error) {
             console.error("Error al guardar huésped en Supabase:", error);
             return null;
@@ -1058,7 +1196,15 @@ async function cargarHuespedesSupabase() {
 
         // Limpiar todos los huéspedes antes de cargar
         Object.keys(rooms).forEach(roomNum => {
-            rooms[roomNum].guest = { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' };
+            rooms[roomNum].guest = {
+                name: '',
+                surname: '',
+                pax: 0,
+                phone: '',
+                agency: '',
+                checkIn: '',
+                checkOut: ''
+            };
         });
 
         // Asignar huéspedes a sus habitaciones
@@ -1070,8 +1216,20 @@ async function cargarHuespedesSupabase() {
                     number: roomNum,
                     incidents: [],
                     status: 'libre',
-                    guest: { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' },
-                    roomInfo: { description: '', features: '', notes: '' },
+                    guest: {
+                        name: '',
+                        surname: '',
+                        pax: 0,
+                        phone: '',
+                        agency: '',
+                        checkIn: '',
+                        checkOut: ''
+                    },
+                    roomInfo: {
+                        description: '',
+                        features: '',
+                        notes: ''
+                    },
                     occupancyStatus: 'libre'
                 };
             }
@@ -1093,20 +1251,34 @@ async function cargarHuespedesSupabase() {
             if (room) {
                 const roomInfo = room.guest || {};
                 ['guestName', 'guestSurname', 'guestPax', 'guestPhone', 'guestAgency', 'checkInDate', 'checkOutDate']
-                    .forEach(id => {
-                        const el = document.getElementById(id);
-                        if (el) {
-                            switch (id) {
-                                case 'guestName': el.value = roomInfo.name || ''; break;
-                                case 'guestSurname': el.value = roomInfo.surname || ''; break;
-                                case 'guestPax': el.value = roomInfo.pax || ''; break;
-                                case 'guestPhone': el.value = roomInfo.phone || ''; break;
-                                case 'guestAgency': el.value = roomInfo.agency || ''; break;
-                                case 'checkInDate': el.value = roomInfo.checkIn || ''; break;
-                                case 'checkOutDate': el.value = roomInfo.checkOut || ''; break;
-                            }
+                .forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        switch (id) {
+                            case 'guestName':
+                                el.value = roomInfo.name || '';
+                                break;
+                            case 'guestSurname':
+                                el.value = roomInfo.surname || '';
+                                break;
+                            case 'guestPax':
+                                el.value = roomInfo.pax || '';
+                                break;
+                            case 'guestPhone':
+                                el.value = roomInfo.phone || '';
+                                break;
+                            case 'guestAgency':
+                                el.value = roomInfo.agency || '';
+                                break;
+                            case 'checkInDate':
+                                el.value = roomInfo.checkIn || '';
+                                break;
+                            case 'checkOutDate':
+                                el.value = roomInfo.checkOut || '';
+                                break;
                         }
-                    });
+                    }
+                });
             }
         }
 
@@ -1127,13 +1299,15 @@ async function cargarHuespedesSupabase() {
 
 async function guardarNotasHabitacionSupabase(notasData) {
     try {
-        const { data: existing } = await supabaseClient
+        const {
+            data: existing
+        } = await supabaseClient
             .from("habitaciones_notas")
             .select('id')
             .eq('habitacion', notasData.habitacion);
-            
+
         let data, error;
-        
+
         if (existing && existing.length > 0) {
             const result = await supabaseClient
                 .from("habitaciones_notas")
@@ -1150,7 +1324,7 @@ async function guardarNotasHabitacionSupabase(notasData) {
             data = result.data;
             error = result.error;
         }
-        
+
         if (error) {
             console.error("Error al guardar notas en Supabase:", error);
             return null;
@@ -1164,22 +1338,29 @@ async function guardarNotasHabitacionSupabase(notasData) {
 
 async function cargarNotasHabitacionesSupabase() {
     try {
-        const { data, error } = await supabaseClient
+        const {
+            data,
+            error
+        } = await supabaseClient
             .from('habitaciones_notas')
             .select('*');
-            
+
         if (error) {
             console.error('Error al cargar notas:', error);
             return;
         }
-        
+
         // ✅ LIMPIAR TODAS las notas primero
         Object.keys(rooms).forEach(roomNum => {
             if (rooms[roomNum].roomInfo) {
-                rooms[roomNum].roomInfo = { description: '', features: '', notes: '' };
+                rooms[roomNum].roomInfo = {
+                    description: '',
+                    features: '',
+                    notes: ''
+                };
             }
         });
-        
+
         // Luego cargar solo las que existen en Supabase
         data.forEach((nota) => {
             const roomNum = nota.habitacion;
@@ -1188,8 +1369,20 @@ async function cargarNotasHabitacionesSupabase() {
                     number: roomNum,
                     incidents: [],
                     status: 'libre',
-                    guest: { name: '', surname: '', pax: 0, phone: '', agency: '', checkIn: '', checkOut: '' },
-                    roomInfo: { description: '', features: '', notes: '' },
+                    guest: {
+                        name: '',
+                        surname: '',
+                        pax: 0,
+                        phone: '',
+                        agency: '',
+                        checkIn: '',
+                        checkOut: ''
+                    },
+                    roomInfo: {
+                        description: '',
+                        features: '',
+                        notes: ''
+                    },
                     occupancyStatus: 'libre'
                 };
             }
@@ -1199,7 +1392,7 @@ async function cargarNotasHabitacionesSupabase() {
                 notes: nota.notas || ''
             };
         });
-        
+
         console.log('Notas cargadas desde Supabase:', data.length);
     } catch (err) {
         console.error('Error en cargarNotasHabitacionesSupabase:', err);
@@ -1225,19 +1418,19 @@ async function addIncident() {
     }
 
     const incidentData = {
-        habitacion: parseInt(currentRoom, 10),           // INTEGER NOT NULL
-        descripcion: description,                        // TEXT NOT NULL
-        gravedad: severity,                              // TEXT NOT NULL
-        tipo: type,                                      // TEXT NOT NULL
-        prioridad: priority,                             // TEXT NOT NULL
-        etiqueta: tag || "sin etiqueta",                 // TEXT
-        reportado_por: reportedBy || "No especificado",  // TEXT
-        fecha_creacion: new Date().toISOString(),        // TIMESTAMPTZ
-        fecha_limite: expiryDate,                        // DATE
-        resuelta: false,                                 // BOOLEAN
-        alerta: alertMessage || null,                    // TEXT
-        fecha_alerta: alertDate,                         // DATE
-        hora_alerta: alertTime                           // TIME
+        habitacion: parseInt(currentRoom, 10), // INTEGER NOT NULL
+        descripcion: description, // TEXT NOT NULL
+        gravedad: severity, // TEXT NOT NULL
+        tipo: type, // TEXT NOT NULL
+        prioridad: priority, // TEXT NOT NULL
+        etiqueta: tag || "sin etiqueta", // TEXT
+        reportado_por: reportedBy || "No especificado", // TEXT
+        fecha_creacion: new Date().toISOString(), // TIMESTAMPTZ
+        fecha_limite: expiryDate, // DATE
+        resuelta: false, // BOOLEAN
+        alerta: alertMessage || null, // TEXT
+        fecha_alerta: alertDate, // DATE
+        hora_alerta: alertTime // TIME
     };
 
     console.log("📤 Enviando a Supabase:", incidentData);
@@ -1250,8 +1443,9 @@ async function addIncident() {
         showAlert("✅ Incidencia agregada correctamente", "success", 3000, true);
         closeModal();
     }
-    
+
 }
+
 function isExpired(incident) {
     if (!incident.expiry) return false;
     const today = new Date();
@@ -1270,7 +1464,12 @@ function renderIncidents() {
     }
 
     const sortedIncidents = [...room.incidents].sort((a, b) => {
-        const severityPriority = { 'critica': 4, 'grave': 3, 'moderada': 2, 'leve': 1 };
+        const severityPriority = {
+            'critica': 4,
+            'grave': 3,
+            'moderada': 2,
+            'leve': 1
+        };
         const priorityA = severityPriority[a.severity] || 0;
         const priorityB = severityPriority[b.severity] || 0;
         if (priorityA !== priorityB) return priorityB - priorityA;
@@ -1310,49 +1509,57 @@ function renderIncidents() {
 }
 
 async function resolveIncident(incidentId) {
-  if (!currentRoom) return;
+    if (!currentRoom) return;
 
-  // Marca como resuelta en Supabase (mantiene histórico)
-  const { error } = await supabaseClient
-    .from('incidencias')
-    .update({ resuelta: true })
-    .eq('id', incidentId);
+    // Marca como resuelta en Supabase (mantiene histórico)
+    const {
+        error
+    } = await supabaseClient
+        .from('incidencias')
+        .update({
+            resuelta: true
+        })
+        .eq('id', incidentId);
 
-  if (error) {
-    console.error('❌ Error al resolver en Supabase:', error);
-    showAlert('Error al resolver incidencia en Supabase', 'error', 3000, true);
-    return;
-  }
+    if (error) {
+        console.error('❌ Error al resolver en Supabase:', error);
+        showAlert('Error al resolver incidencia en Supabase', 'error', 3000, true);
+        return;
+    }
 
-  // Refresca desde Supabase para que todas las sesiones vean el cambio
-  await cargarIncidenciasSupabase();
-updateRoomStatus(currentRoom); // ← Agregar esta línea
-renderIncidents();
-renderRooms(); // ← Agregar esta línea también
-showAlert('Incidencia resuelta', 'success', 3000, true);
+    // Refresca desde Supabase para que todas las sesiones vean el cambio
+    await cargarIncidenciasSupabase();
+    updateRoomStatus(currentRoom); // ← Agregar esta línea
+    renderIncidents();
+    renderRooms(); // ← Agregar esta línea también
+    showAlert('Incidencia resuelta', 'success', 3000, true);
 }
 
 async function removeIncident(incidentId) {
-  if (!currentRoom) return;
+    if (!currentRoom) return;
 
-  // Opción A: borrar del todo
-  // const { error } = await supabaseClient.from('incidencias').delete().eq('id', incidentId);
+    // Opción A: borrar del todo
+    // const { error } = await supabaseClient.from('incidencias').delete().eq('id', incidentId);
 
-  // Opción B (recomendada): marcar como resuelta = “eliminada” de la vista actual
-  const { error } = await supabaseClient
-    .from('incidencias')
-    .update({ resuelta: true })
-    .eq('id', incidentId);
+    // Opción B (recomendada): marcar como resuelta = “eliminada” de la vista actual
+    const {
+        error
+    } = await supabaseClient
+        .from('incidencias')
+        .update({
+            resuelta: true
+        })
+        .eq('id', incidentId);
 
-  if (error) {
-    console.error('❌ Error al eliminar en Supabase:', error);
-    showAlert('Error al eliminar incidencia en Supabase', 'error', 3000, true);
-    return;
-  }
+    if (error) {
+        console.error('❌ Error al eliminar en Supabase:', error);
+        showAlert('Error al eliminar incidencia en Supabase', 'error', 3000, true);
+        return;
+    }
 
-  await cargarIncidenciasSupabase();
-  renderIncidents();
-  showAlert('Incidencia eliminada', 'info', 3000, true);
+    await cargarIncidenciasSupabase();
+    renderIncidents();
+    showAlert('Incidencia eliminada', 'info', 3000, true);
 }
 
 
@@ -1378,9 +1585,13 @@ async function resolveAllIncidents() {
 
         const ids = roomIncidents.map(inc => inc.id);
 
-        const { error } = await supabaseClient
+        const {
+            error
+        } = await supabaseClient
             .from("incidencias")
-            .update({ resuelta: true })
+            .update({
+                resuelta: true
+            })
             .in("id", ids);
 
         if (error) {
@@ -1393,9 +1604,9 @@ async function resolveAllIncidents() {
         updateRoomStatus(currentRoom);
         renderRooms();
         showAlert("✅ Todas las incidencias de la habitación han sido resueltas", "success", 3000, true);
-		renderIncidents(); // ← Agregar esta línea
-		closeModal();
-		
+        renderIncidents(); // ← Agregar esta línea
+        closeModal();
+
     } catch (err) {
         console.error("Error en resolveAllIncidents:", err);
     }
@@ -1412,7 +1623,9 @@ async function clearAllIncidents() {
     try {
         const ids = roomIncidents.map(inc => inc.id);
 
-        const { error } = await supabaseClient
+        const {
+            error
+        } = await supabaseClient
             .from("incidencias")
             .delete()
             .in("id", ids);
@@ -1428,7 +1641,7 @@ async function clearAllIncidents() {
         renderRooms(); // ← Agregar esta línea también
         renderIncidents(); // ← Nueva línea
         showAlert("🗑️ Todas las incidencias de la habitación han sido eliminadas", "info", 3000, true);
-		closeModal();
+        closeModal();
     } catch (err) {
         console.error("Error en clearAllIncidents:", err);
     }
@@ -1478,9 +1691,19 @@ function checkAlerts() {
                 const diffTime = expiryDate.getTime() - now.getTime();
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                 if (diffDays <= 1 && diffDays >= 0) {
-                    alerts.push({ type: 'warning', priority: diffDays === 0 ? 5 : 4, message: `Habitación ${room.number}: ${incident.description} - Caduca ${diffDays === 0 ? 'HOY' : 'mañana'}`, date: expiryDate });
+                    alerts.push({
+                        type: 'warning',
+                        priority: diffDays === 0 ? 5 : 4,
+                        message: `Habitación ${room.number}: ${incident.description} - Caduca ${diffDays === 0 ? 'HOY' : 'mañana'}`,
+                        date: expiryDate
+                    });
                 } else if (diffDays < 0) {
-                    alerts.push({ type: 'error', priority: 6, message: `Habitación ${room.number}: ${incident.description} - CADUCADO`, date: expiryDate });
+                    alerts.push({
+                        type: 'error',
+                        priority: 6,
+                        message: `Habitación ${room.number}: ${incident.description} - CADUCADO`,
+                        date: expiryDate
+                    });
                 }
             }
             if (incident.alertDate && incident.alertTime) {
@@ -1490,8 +1713,19 @@ function checkAlerts() {
                 if (diffMinutes <= 60 && diffMinutes >= -5) {
                     let alertType = 'info';
                     let priority = 2;
-                    if (diffMinutes <= 0) { alertType = 'warning'; priority = 5; } else if (diffMinutes <= 15) { alertType = 'info'; priority = 4; }
-                    alerts.push({ type: alertType, priority: priority, message: `Habitación ${room.number}: ${incident.alert || incident.description} - ${diffMinutes <= 0 ? 'AHORA' : `en ${diffMinutes} min`}`, date: alertDateTime });
+                    if (diffMinutes <= 0) {
+                        alertType = 'warning';
+                        priority = 5;
+                    } else if (diffMinutes <= 15) {
+                        alertType = 'info';
+                        priority = 4;
+                    }
+                    alerts.push({
+                        type: alertType,
+                        priority: priority,
+                        message: `Habitación ${room.number}: ${incident.alert || incident.description} - ${diffMinutes <= 0 ? 'AHORA' : `en ${diffMinutes} min`}`,
+                        date: alertDateTime
+                    });
                 }
             }
         });
@@ -1626,9 +1860,9 @@ function clearAllData() {
                 rooms = {};
                 resolvedIncidents = [];
                 managementNotifications = [];
-              
 
-                               closeModal();
+
+                closeModal();
                 closeHistoryModal();
                 showAlert('Todos los datos han sido eliminados', 'success', 3000, true);
             } else {
@@ -1677,7 +1911,7 @@ function setupEventListeners() {
         }
     });
 
-   
+
     // Verificar alertas automáticas cada 5 minutos
     setInterval(checkAutoAlerts, 300000); // 5 minutos
 }
@@ -1754,18 +1988,20 @@ function filterHistory() {
 // Inicializar
 function initialize() {
     try {
-       
+
         setupEventListeners();
-      
+
         setupSupabaseSubscription();
-		setupHuespedesSubscription();
-		setupEventosSubscription();
-		setupNotasHabitacionSubscription();
-		
-		initializeRooms();
+        setupHuespedesSubscription();
+        setupEventosSubscription();
+        setupNotasHabitacionSubscription();
+
+        initializeRooms();
 
         // Verificar alertas automáticas al cargar
-        setTimeout(() => { checkAutoAlerts(); }, 3000);
+        setTimeout(() => {
+            checkAutoAlerts();
+        }, 3000);
 
         console.log('Sistema inicializado correctamente');
         showAlert('Sistema de gestión hotelera iniciado correctamente', 'success', 3000, true);
@@ -1785,8 +2021,14 @@ if (document.readyState === 'loading') {
 
 // --- Integración webapp simple (guardar / leer) ---
 async function guardar() {
-    const data = { titulo: "Prueba", descripcion: "Desde HTML" };
-    await fetch(WEBAPP_URL, { method: "POST", body: JSON.stringify(data) });
+    const data = {
+        titulo: "Prueba",
+        descripcion: "Desde HTML"
+    };
+    await fetch(WEBAPP_URL, {
+        method: "POST",
+        body: JSON.stringify(data)
+    });
 }
 
 async function leer() {
@@ -1805,7 +2047,10 @@ function renderCalendar() {
     const monthSpan = document.getElementById("currentMonth");
     if (!grid || !monthSpan) return;
 
-    monthSpan.textContent = currentCalendarDate.toLocaleDateString("es-ES", { month: 'long', year: 'numeric' }).toUpperCase();
+    monthSpan.textContent = currentCalendarDate.toLocaleDateString("es-ES", {
+        month: 'long',
+        year: 'numeric'
+    }).toUpperCase();
     const firstDay = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth(), 1);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - (firstDay.getDay() || 7) + 1); // Empezar en lunes
@@ -1852,7 +2097,12 @@ function selectDate(dateKey, date) {
     selectedDate = dateKey;
     const selectedEl = document.getElementById("selectedDate");
     if (selectedEl) {
-        selectedEl.textContent = date.toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        selectedEl.textContent = date.toLocaleDateString("es-ES", {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
     }
     renderCalendar();
     renderDayEvents();
@@ -1871,7 +2121,12 @@ function renderDayEvents() {
         return;
     }
     container.innerHTML = events.map((event, idx) => {
-        const typeColors = { nota: '#3b82f6', mantenimiento: '#f59e0b', reserva: '#22c55e', alerta: '#ef4444' };
+        const typeColors = {
+            nota: '#3b82f6',
+            mantenimiento: '#f59e0b',
+            reserva: '#22c55e',
+            alerta: '#ef4444'
+        };
         return `
            <div style="background: #f8fafc; border-left: 4px solid ${typeColors[event.type]}; padding: 8px; margin-bottom: 6px; border-radius: 0 6px 6px 0;">
                <div style="display: flex; justify-content: space-between; align-items: start;">
@@ -1936,7 +2191,10 @@ function nextMonth() {
 }
 
 function showEventModal() {
-    if (!selectedDate) { alert("Selecciona primero un día del calendario"); return; }
+    if (!selectedDate) {
+        alert("Selecciona primero un día del calendario");
+        return;
+    }
     const modal = document.getElementById("eventModal");
     if (modal) modal.style.display = "block";
 }
@@ -1945,14 +2203,17 @@ function closeEventModal() {
     const modal = document.getElementById("eventModal");
     if (modal) modal.style.display = "none";
     const ids = ['eventTitle', 'eventDescription', 'eventTime', 'eventType'];
-    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
     document.getElementById("eventType").value = "nota";
 }
 
 async function addCalendarEvent() {
     const title = document.getElementById("eventTitle")?.value.trim();
     if (!title || !selectedDate) return;
-    
+
     const eventoData = {
         fecha: selectedDate,
         tipo: document.getElementById("eventType")?.value || 'nota',
@@ -1960,7 +2221,7 @@ async function addCalendarEvent() {
         descripcion: document.getElementById("eventDescription")?.value.trim() || null,
         hora: document.getElementById("eventTime")?.value || null
     };
-    
+
     const result = await guardarEventoSupabase(eventoData);
     if (result) {
         await cargarEventosSupabase();
@@ -1973,7 +2234,7 @@ async function addCalendarEvent() {
 
 async function deleteCalendarEvent(idx) {
     if (!selectedDate) return;
-    
+
     const evento = calendarEvents[selectedDate][idx];
     if (evento && evento.id) {
         const success = await eliminarEventoSupabase(evento.id);
@@ -1991,6 +2252,6 @@ document.addEventListener("DOMContentLoaded", () => {
     renderCalendar();
     const today = formatDateKeyLocal(new Date());
     selectDate(today, new Date());
-    
-   
+
+
 });
