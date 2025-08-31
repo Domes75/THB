@@ -2382,5 +2382,4 @@ document.addEventListener("DOMContentLoaded", () => {
     const today = formatDateKeyLocal(new Date());
     selectDate(today, new Date());
 
-
 });
