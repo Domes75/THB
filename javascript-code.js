@@ -415,6 +415,7 @@ async function saveRoomNotes() {
     if (result) {
         renderRooms();
         showAlert('Notas de habitación guardadas correctamente', 'success', 3000, true);
+        closeModal();
     } else {
         showAlert('Error al guardar notas en Supabase', 'error', 3000, true);
         closeModal();
@@ -654,7 +655,7 @@ function renderRooms() {
             <div class="room-number" style="opacity:${opacity}">${room.number}</div>
             <div class="room-status" style="opacity:${opacity}">${getStatusText(room.status)}</div>
             ${hasNotes ? `<div class="notes-icon" style="opacity:${opacity}; position: absolute; bottom: 4px; left: 4px; background: #3b82f6; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px;">📝</div>` : ''}
-            ${hasGuest ? `<div class="guest-icon" style="position: absolute; bottom: 4px; left: 4px; background: #22c55e; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; box-shadow: 0 0 2px rgba(0,0,0,0.3);">👤</div>` : ''}
+           ${hasGuest ? `<div class="guest-icon" style="position: absolute; top: 4px; left: 4px; background: #22c55e; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; box-shadow: 0 0 2px rgba(0,0,0,0.3);">👤</div>` : ''}
             ${guestInfo}
             ${mainIcon ? `<div class="incident-type-icon" style="opacity:${opacity}">${mainIcon}</div>` : ''}
             ${mainTags.length > 0 ? `<div class="room-tags">${mainTags.map(tag => `<div class="room-tag" style="opacity:${opacity}">${tag}</div>`).join('')}</div>` : ''}
@@ -1325,8 +1326,10 @@ async function resolveIncident(incidentId) {
 
   // Refresca desde Supabase para que todas las sesiones vean el cambio
   await cargarIncidenciasSupabase();
-  renderIncidents();
-  showAlert('Incidencia resuelta', 'success', 3000, true);
+updateRoomStatus(currentRoom); // ← Agregar esta línea
+renderIncidents();
+renderRooms(); // ← Agregar esta línea también
+showAlert('Incidencia resuelta', 'success', 3000, true);
 }
 
 async function removeIncident(incidentId) {
@@ -1363,6 +1366,16 @@ async function resolveAllIncidents() {
     }
 
     try {
+        // ✅ ANTES de marcar como resueltas, moverlas al historial
+        roomIncidents.forEach(incident => {
+            resolvedIncidents.push({
+                ...incident,
+                roomNumber: currentRoom,
+                resolvedDate: new Date(),
+                resolvedBy: 'Sistema'
+            });
+        });
+
         const ids = roomIncidents.map(inc => inc.id);
 
         const { error } = await supabaseClient
@@ -1377,13 +1390,16 @@ async function resolveAllIncidents() {
         }
 
         await cargarIncidenciasSupabase();
+        updateRoomStatus(currentRoom);
+        renderRooms();
         showAlert("✅ Todas las incidencias de la habitación han sido resueltas", "success", 3000, true);
+		renderIncidents(); // ← Agregar esta línea
 		closeModal();
+		
     } catch (err) {
         console.error("Error en resolveAllIncidents:", err);
     }
 }
-
 async function clearAllIncidents() {
     if (!currentRoom) return;
 
@@ -1408,6 +1424,9 @@ async function clearAllIncidents() {
         }
 
         await cargarIncidenciasSupabase();
+        updateRoomStatus(currentRoom); // ← Agregar esta línea
+        renderRooms(); // ← Agregar esta línea también
+        renderIncidents(); // ← Nueva línea
         showAlert("🗑️ Todas las incidencias de la habitación han sido eliminadas", "info", 3000, true);
 		closeModal();
     } catch (err) {
