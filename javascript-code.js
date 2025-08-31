@@ -117,6 +117,66 @@ function setupNotasHabitacionSubscription() {
         .subscribe((status) => console.log('Notas Realtime:', status));
 }
 
+async function guardarHistorialSupabase(historialData) {
+    try {
+        const { data, error } = await supabaseClient
+            .from("historial_incidencias")
+            .insert([historialData])
+            .select();
+            
+        if (error) {
+            console.error("Error al guardar historial en Supabase:", error);
+            return null;
+        }
+        console.log('Historial guardado en Supabase:', data);
+        return data;
+    } catch (err) {
+        console.error('Error en guardarHistorialSupabase:', err);
+        return null;
+    }
+}
+
+async function cargarHistorialSupabase() {
+    try {
+        const { data, error } = await supabaseClient
+            .from('historial_incidencias')
+            .select('*')
+            .order('fecha_resolucion', { ascending: false });
+            
+        if (error) {
+            console.error('Error al cargar historial:', error);
+            return;
+        }
+        
+        // Convertir datos de Supabase al formato local
+        resolvedIncidents = data.map(item => ({
+            id: item.incidencia_id_original || item.id,
+            roomNumber: item.habitacion,
+            severity: item.gravedad,
+            type: item.tipo,
+            priority: item.prioridad,
+            description: item.descripcion,
+            tag: item.etiqueta,
+            reportedBy: item.reportado_por,
+            date: new Date(item.fecha_creacion),
+            resolvedDate: new Date(item.fecha_resolucion),
+            resolvedBy: item.resuelto_por,
+            expiry: item.fecha_limite,
+            alert: item.alerta,
+            alertDate: item.fecha_alerta,
+            alertTime: item.hora_alerta
+        }));
+        
+        console.log('Historial cargado desde Supabase:', data.length);
+
+// ✅ AGREGAR: Forzar actualización del indicador de historial
+updateHistoryIndicator();
+
+} catch (err) {
+    console.error('Error en cargarHistorialSupabase:', err);
+}
+}
+
 async function cargarEventosSupabase() {
     try {
         const {
@@ -520,9 +580,13 @@ function updateHistoryIndicator() {
 
 
 
-// Cargar datos más recientes desde Supabase después de inicializar localmente
 if (typeof supabaseClient !== 'undefined') {
-    Promise.all([cargarIncidenciasSupabase(), cargarHuespedesSupabase(), cargarNotasHabitacionesSupabase()]).then(() => {
+    Promise.all([
+        cargarIncidenciasSupabase(), 
+        cargarHuespedesSupabase(), 
+        cargarNotasHabitacionesSupabase(),
+        cargarHistorialSupabase()
+    ]).then(() => {
         console.log('Datos sincronizados desde Supabase');
         renderRooms();
         updateStats();
@@ -1548,42 +1612,54 @@ function renderIncidents() {
 }
 
 async function resolveIncident(incidentId) {
-    if (!currentRoom) return;
+  if (!currentRoom) return;
 
-
-	// ✅ AGREGAR: Encontrar la incidencia y moverla al historial
+  // Encontrar la incidencia antes de resolverla
   const room = rooms[currentRoom];
   const incident = room.incidents.find(inc => inc.id === incidentId);
+  
   if (incident) {
-    resolvedIncidents.push({
-      ...incident,
-      roomNumber: currentRoom,
-      resolvedDate: new Date(),
-      resolvedBy: 'Usuario'
-    });
+    // Guardar en historial de Supabase
+    const historialData = {
+      habitacion: currentRoom,
+      descripcion: incident.description,
+      gravedad: incident.severity,
+      tipo: incident.type,
+      prioridad: incident.priority,
+      etiqueta: incident.tag,
+      reportado_por: incident.reportedBy,
+      fecha_creacion: incident.date.toISOString(),
+      resuelto_por: 'Usuario',
+      fecha_limite: incident.expiry,
+      alerta: incident.alert,
+      fecha_alerta: incident.alertDate,
+      hora_alerta: incident.alertTime,
+      incidencia_id_original: incident.id
+    };
+    
+    await guardarHistorialSupabase(historialData);
+    
+	await cargarHistorialSupabase(); // ✅ Agregar esta línea
+
   }
-    // Marca como resuelta en Supabase (mantiene histórico)
-    const {
-        error
-    } = await supabaseClient
-        .from('incidencias')
-        .update({
-            resuelta: true
-        })
-        .eq('id', incidentId);
 
-    if (error) {
-        console.error('❌ Error al resolver en Supabase:', error);
-        showAlert('Error al resolver incidencia en Supabase', 'error', 3000, true);
-        return;
-    }
+  // Marca como resuelta en Supabase
+  const { error } = await supabaseClient
+    .from('incidencias')
+    .update({ resuelta: true })
+    .eq('id', incidentId);
 
-    // Refresca desde Supabase para que todas las sesiones vean el cambio
-    await cargarIncidenciasSupabase();
-    updateRoomStatus(currentRoom); // ← Agregar esta línea
-    renderIncidents();
-    renderRooms(); // ← Agregar esta línea también
-    showAlert('Incidencia resuelta', 'success', 3000, true);
+  if (error) {
+    console.error('❌ Error al resolver en Supabase:', error);
+    showAlert('Error al resolver incidencia en Supabase', 'error', 3000, true);
+    return;
+  }
+
+  await cargarIncidenciasSupabase();
+  updateRoomStatus(currentRoom);
+  renderIncidents();
+  renderRooms();
+  showAlert('Incidencia resuelta', 'success', 3000, true);
 }
 
 async function removeIncident(incidentId) {
@@ -1624,25 +1700,33 @@ async function resolveAllIncidents() {
     }
 
     try {
-        // ✅ ANTES de marcar como resueltas, moverlas al historial
-        roomIncidents.forEach(incident => {
-            resolvedIncidents.push({
-                ...incident,
-                roomNumber: currentRoom,
-                resolvedDate: new Date(),
-                resolvedBy: 'Sistema'
-            });
-        });
+        // ✅ CAMBIAR: Guardar en historial de Supabase en lugar del array local
+        for (const incident of roomIncidents) {
+            const historialData = {
+                habitacion: currentRoom,
+                descripcion: incident.description,
+                gravedad: incident.severity,
+                tipo: incident.type,
+                prioridad: incident.priority,
+                etiqueta: incident.tag,
+                reportado_por: incident.reportedBy,
+                fecha_creacion: incident.date.toISOString(),
+                resuelto_por: 'Sistema',
+                fecha_limite: incident.expiry,
+                alerta: incident.alert,
+                fecha_alerta: incident.alertDate,
+                hora_alerta: incident.alertTime,
+                incidencia_id_original: incident.id
+            };
+            await guardarHistorialSupabase(historialData);
+            await cargarHistorialSupabase(); // ✅ Agregar esta línea
+        }
 
         const ids = roomIncidents.map(inc => inc.id);
 
-        const {
-            error
-        } = await supabaseClient
+        const { error } = await supabaseClient
             .from("incidencias")
-            .update({
-                resuelta: true
-            })
+            .update({ resuelta: true })
             .in("id", ids);
 
         if (error) {
@@ -1654,14 +1738,14 @@ async function resolveAllIncidents() {
         await cargarIncidenciasSupabase();
         updateRoomStatus(currentRoom);
         renderRooms();
+        renderIncidents();
         showAlert("✅ Todas las incidencias de la habitación han sido resueltas", "success", 3000, true);
-        renderIncidents(); // ← Agregar esta línea
-        closeModal();
 
     } catch (err) {
         console.error("Error en resolveAllIncidents:", err);
     }
 }
+
 async function clearAllIncidents() {
     if (!currentRoom) return;
 
@@ -1967,11 +2051,14 @@ function setupEventListeners() {
     setInterval(checkAutoAlerts, 300000); // 5 minutos
 }
 
-// Modal historial general
 function openHistoryModal() {
     const modal = document.getElementById('historyModal');
     if (modal) modal.style.display = 'block';
-    renderGeneralHistory();
+    
+    // ✅ Cargar historial fresco desde Supabase antes de mostrar
+    cargarHistorialSupabase().then(() => {
+        renderGeneralHistory();
+    });
 }
 
 function closeHistoryModal() {
