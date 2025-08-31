@@ -757,24 +757,15 @@ const hasActiveAlert = room.incidents.some(incident => {
     const now = new Date();
     const diffMinutes = Math.ceil((alertDateTime.getTime() - now.getTime()) / (1000 * 60));
     
-    // ✅ AGREGAR ESTOS CONSOLE.LOG:
-    console.log(`Habitación ${room.number}:`, {
-        alertDate: incident.alertDate,
-        alertTime: incident.alertTime,
-        alertDateTime: alertDateTime,
-        now: now,
-        diffMinutes: diffMinutes,
-        shouldBeActive: diffMinutes <= 0 && diffMinutes >= -30
-    });
-    
-    return diffMinutes <= 0 && diffMinutes >= -30;
+    const shouldBeActive = diffMinutes <= 15 && diffMinutes >= -180;
+       
+    return shouldBeActive;
 });
 
-console.log(`Habitación ${room.number} hasActiveAlert:`, hasActiveAlert); // ✅ Y ESTE
 
 roomCard.className = `room-card ${room.status}`;
 if (hasActiveAlert) {
-    console.log(`Aplicando alerta a habitación ${room.number}`); // ✅ Y ESTE
+    
     roomCard.setAttribute('data-alert', 'true');
 }
 
